@@ -2,6 +2,7 @@ import argparse
 import os
 
 import mmint_utils
+from tqdm import tqdm
 
 from usdf.watertight_utils import make_mesh_watertight
 
@@ -14,7 +15,7 @@ def generate_watertight_shapenet(category_dir, out_dir):
         category_dir: path to the shapenet category directory
         out_dir: path to the output directory
     """
-    for model_id in os.listdir(category_dir):
+    for model_id in tqdm(os.listdir(category_dir)):
         model_dir = os.path.join(category_dir, model_id)
         input_mesh = os.path.join(model_dir, "models", "model_normalized.obj")
         output_mesh = os.path.join(out_dir, model_id + '.obj')
