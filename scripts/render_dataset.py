@@ -9,10 +9,13 @@ import transforms3d as tf3d
 from tqdm import tqdm
 from usdf import utils
 from usdf.render_utils import depth_to_pointcloud
-from vedo import Plotter, Points, Mesh
+
+os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
 def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
+    N = 8  # Number of angles to render mesh from.
+
     meshes_dir = dataset_cfg["meshes_dir"]
     dataset_dir = dataset_cfg["dataset_dir"]
     mmint_utils.make_dir(dataset_dir)
@@ -39,6 +42,9 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     light = pyrender.SpotLight(color=np.ones(3), intensity=3.0, innerConeAngle=np.pi / 16.0, outerConeAngle=np.pi / 6.0)
     scene.add(light, pose=camera_pose)
 
+    # Add renderer.
+    r = pyrender.OffscreenRenderer(128, 128)
+
     for mesh_fn in tqdm(mesh_fns):
         partials_dict = dict()
 
@@ -48,27 +54,20 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
         mesh_node = pyrender.Node(mesh=mesh, matrix=np.eye(4))
         scene.add_node(mesh_node)
 
-        for angle in np.linspace(0, 2 * np.pi, 32)[:-1]:
+        for angle in np.linspace(0, 2 * np.pi, N + 1)[:-1]:
             object_pose = np.eye(4)
             object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle, axes="sxyz")
             scene.set_pose(mesh_node, object_pose)
 
             # Render the scene.
-            r = pyrender.OffscreenRenderer(512, 512)
             color, depth = r.render(scene)
 
             # Convert depth to pointcloud.
-            pointcloud = depth_to_pointcloud(depth, yfov)
+            pointcloud = depth_to_pointcloud(depth, yfov)[:, :3]
             pointcloud = utils.transform_pointcloud(pointcloud, camera_pose)
 
             # Save partials.
             partials_dict[angle] = pointcloud
-
-            # Plot pointcloud.
-            if vis:
-                vedo_plt = Plotter()
-                mesh_tri_rot = mesh_tri.copy().apply_transform(object_pose)
-                vedo_plt.at(0).show(Points(pointcloud[:, :3]), Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces]))
 
         # Write partials.
         partials_fn = os.path.join(partials_dir, mesh_fn[:-4] + ".pkl.gzip")
