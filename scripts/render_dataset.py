@@ -8,7 +8,8 @@ import trimesh
 import transforms3d as tf3d
 from tqdm import tqdm
 from usdf import utils
-from usdf.render_utils import depth_to_pointcloud
+from usdf.render_utils import depth_to_pointcloud, depth_to_free_points
+from vedo import Plotter, Points, Mesh
 
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 
@@ -66,8 +67,22 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
             pointcloud = depth_to_pointcloud(depth, yfov)[:, :3]
             pointcloud = utils.transform_pointcloud(pointcloud, camera_pose)
 
+            # Recover free points.
+            free_pointcloud = depth_to_free_points(depth, yfov, max_depth=3.0, n=100)
+            free_pointcloud = utils.transform_pointcloud(free_pointcloud, camera_pose)
+
+            # if vis:
+            #     plt = Plotter()
+            #     mesh_tri_rot = mesh_tri.copy().apply_transform(object_pose)
+            #     plt.at(0).show(Points(pointcloud[:, :3], c="green"),
+            #                    Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces]),
+            #                    Points(free_pointcloud[:, :3], c="blue", alpha=0.1))
+
             # Save partials.
-            partials_dict[angle] = pointcloud
+            partials_dict[angle] = {
+                "pointcloud": pointcloud,
+                "free_pointcloud": free_pointcloud,
+            }
 
         # Write partials.
         partials_fn = os.path.join(partials_dir, mesh_fn[:-4] + ".pkl.gzip")
