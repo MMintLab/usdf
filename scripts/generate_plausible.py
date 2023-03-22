@@ -44,7 +44,7 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
         sdf = pv.MeshSDF(obj)
         if use_cached_sdf:
             sdf = pv.CachedSDF(os.path.splitext(mesh_fn)[0], resolution=0.02,
-                               range_per_dim=obj.bounding_box(padding=0.1), gt_sdf=sdf)
+                               range_per_dim=obj.bounding_box(padding=0.1), gt_sdf=sdf, device=d)
 
         results = dict()
         for partial_fn in partials_fns:
@@ -114,10 +114,12 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                         mesh_estimates.append(Mesh([mesh_tri_est.vertices, mesh_tri_est.faces], alpha=0.5))
 
                     plt = Plotter()
+                    source_mesh_angle = source_mesh.copy().apply_transform(
+                        trimesh.transformations.rotation_matrix(angle, [0, 0, 1]))
                     plt.at(0).show(
                         Points(pointcloud.cpu().numpy(), c="green", alpha=0.2),
                         Points(free_pointcloud.cpu().numpy(), c="blue", alpha=0.2),
-                        Mesh([source_mesh.vertices, source_mesh.faces], c="red"),
+                        Mesh([source_mesh_angle.vertices, source_mesh_angle.faces], c="red"),
                         *mesh_estimates
                     )
 
