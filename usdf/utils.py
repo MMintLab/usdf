@@ -48,6 +48,14 @@ def save_pointcloud(pointcloud, fn: str):
     o3d.io.write_point_cloud(fn, pointcloud_pcd)
 
 
+def load_pointcloud(fn: str):
+    pointcloud_pcd: o3d.geometry.PointCloud = o3d.io.read_point_cloud(fn)
+    pointcloud = np.asarray(pointcloud_pcd.points)
+    if pointcloud_pcd.has_colors():
+        pointcloud = np.concatenate([pointcloud, np.asarray(pointcloud_pcd.colors)], axis=1)
+    return pointcloud
+
+
 def transform_vectors(vectors, T):
     """
     Transform vectors (i.e., just apply rotation) from given matrix transformation T.

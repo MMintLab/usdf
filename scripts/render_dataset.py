@@ -47,13 +47,14 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     r = pyrender.OffscreenRenderer(128, 128)
 
     for mesh_fn in tqdm(mesh_fns):
-        partials_dict = dict()
-
         mesh_path = os.path.join(meshes_dir, mesh_fn)
         mesh_tri: trimesh.Trimesh = trimesh.load(mesh_path)
         mesh = pyrender.Mesh.from_trimesh(mesh_tri)
         mesh_node = pyrender.Node(mesh=mesh, matrix=np.eye(4))
         scene.add_node(mesh_node)
+
+        mesh_partials_path = os.path.join(partials_dir, mesh_fn[:-4])
+        mmint_utils.make_dir(mesh_partials_path)
 
         for angle in np.linspace(0, 2 * np.pi, N + 1)[:-1]:
             object_pose = np.eye(4)
@@ -71,22 +72,19 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
             free_pointcloud = depth_to_free_points(depth, yfov, max_depth=3.0, n=100)
             free_pointcloud = utils.transform_pointcloud(free_pointcloud, camera_pose)
 
-            # if vis:
-            #     plt = Plotter()
-            #     mesh_tri_rot = mesh_tri.copy().apply_transform(object_pose)
-            #     plt.at(0).show(Points(pointcloud[:, :3], c="green"),
-            #                    Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces]),
-            #                    Points(free_pointcloud[:, :3], c="blue", alpha=0.1))
+            if vis:
+                plt = Plotter()
+                mesh_tri_rot = mesh_tri.copy().apply_transform(object_pose)
+                plt.at(0).show(Points(pointcloud[:, :3], c="green"),
+                               Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces]),
+                               Points(free_pointcloud[:, :3], c="blue", alpha=0.1))
 
             # Save partials.
-            partials_dict[angle] = {
-                "pointcloud": pointcloud,
-                "free_pointcloud": free_pointcloud,
-            }
-
-        # Write partials.
-        partials_fn = os.path.join(partials_dir, mesh_fn[:-4] + ".pkl.gzip")
-        mmint_utils.save_gzip_pickle(partials_dict, partials_fn)
+            mesh_partials_angle_path = os.path.join(mesh_partials_path, f"{angle:.2f}")
+            mmint_utils.make_dir(mesh_partials_angle_path)
+            utils.save_pointcloud(pointcloud, os.path.join(mesh_partials_angle_path, "pointcloud.ply"))
+            utils.save_pointcloud(free_pointcloud, os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
+            mmint_utils.save_gzip_pickle({"angle": angle}, os.path.join(mesh_partials_angle_path, "info.pkl.gzip"))
 
         scene.remove_node(mesh_node)
 

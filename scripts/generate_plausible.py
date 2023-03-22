@@ -11,13 +11,16 @@ import torch
 import trimesh
 from tqdm import tqdm
 import open3d as o3d
+from usdf import utils
 
 from vedo import Plotter, Points, Mesh
 
 
 def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
-    N = 1000  # Number of points to use in partial pointcloud.
+    # TODO: Move to config.
+    N = 2000  # Number of points to use in partial pointcloud.
     B = 32  # Batch size for CHSEL.
+    use_cached_sdf: bool = True
     d = "cuda" if torch.cuda.is_available() else "cpu"
 
     meshes_dir = dataset_cfg["meshes_dir"]
@@ -39,21 +42,31 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
         mesh_tri: trimesh.Trimesh = trimesh.load(mesh_fn_full)
         obj = pv.MeshObjectFactory(mesh_fn_full)
         sdf = pv.MeshSDF(obj)
+        if use_cached_sdf:
+            sdf = pv.CachedSDF(os.path.splitext(mesh_fn)[0], resolution=0.02,
+                               range_per_dim=obj.bounding_box(padding=0.1), gt_sdf=sdf)
 
         results = dict()
         for partial_fn in partials_fns:
-            partial_views = mmint_utils.load_gzip_pickle(os.path.join(partials_dir, partial_fn))
-            source_mesh_fn = os.path.join(meshes_dir, partial_fn.replace(".pkl.gzip", ".obj"))
+            partial_views_dirs = os.listdir(os.path.join(partials_dir, partial_fn))
+            partial_views_dirs.sort(key=lambda x: float(x))
+            source_mesh_fn = os.path.join(meshes_dir, partial_fn + ".obj")
             source_mesh = trimesh.load(source_mesh_fn)
 
             results[partial_fn] = dict()
 
-            for angle, partial_dict in partial_views.items():
+            for partial_view_dir in partial_views_dirs:
+                partial_angle_dir = os.path.join(partials_dir, partial_fn, partial_view_dir)
+                pointcloud = utils.load_pointcloud(os.path.join(partial_angle_dir, "pointcloud.ply"))[:, :3]
+                free_pointcloud = utils.load_pointcloud(os.path.join(partial_angle_dir, "free_pointcloud.ply"))[:, :3]
+                angle = mmint_utils.load_gzip_pickle(os.path.join(partial_angle_dir, "info.pkl.gzip"))["angle"]
+
                 # Downsample partial pointcloud.
-                pointcloud = partial_dict["pointcloud"][:, :3]
-                free_pointcloud = partial_dict["free_pointcloud"][:, :3]
                 np.random.shuffle(pointcloud)
                 pointcloud = torch.from_numpy(pointcloud[:N]).to(d).float()
+
+                # Filter free points to lie in ball around object.
+                free_pointcloud = free_pointcloud[np.linalg.norm(free_pointcloud, axis=1) < 1.1]
                 np.random.shuffle(free_pointcloud)
                 free_pointcloud = torch.from_numpy(free_pointcloud[:N]).to(d).float()
 
@@ -68,10 +81,12 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                 # Visualize the points being used.
                 if vis:
                     plt = Plotter()
-                    # TODO: Rotate source mesh here based on angle.
+                    # Rotate source mesh here based on angle.
+                    source_mesh_angle = source_mesh.copy().apply_transform(
+                        trimesh.transformations.rotation_matrix(angle, [0, 0, 1]))
                     plt.at(0).show(Points(pointcloud.cpu().numpy(), c="green"),
                                    Points(free_pointcloud.cpu().numpy(), c="blue", alpha=0.2),
-                                   Mesh([source_mesh.vertices, source_mesh.faces]))
+                                   Mesh([source_mesh_angle.vertices, source_mesh_angle.faces]))
 
                 # Initialize transforms to rotations around z.
                 euler_angles = torch.zeros((B, 3), device=d)
@@ -94,10 +109,9 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
 
                     # Transform meshes based on results.
                     mesh_estimates = []
-                    for i in range(B):
-                        if registration.res_history[-1].rmse[i] < 1.5:
-                            mesh_tri_est = mesh_tri.copy().apply_transform(link_to_world[i].cpu().numpy())
-                            mesh_estimates.append(Mesh([mesh_tri_est.vertices, mesh_tri_est.faces], alpha=0.5))
+                    for i in range(link_to_world.shape[0]):
+                        mesh_tri_est = mesh_tri.copy().apply_transform(link_to_world[i].cpu().numpy())
+                        mesh_estimates.append(Mesh([mesh_tri_est.vertices, mesh_tri_est.faces], alpha=0.5))
 
                     plt = Plotter()
                     plt.at(0).show(
