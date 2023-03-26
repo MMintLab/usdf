@@ -17,6 +17,10 @@ from vedo import Plotter, Points, Mesh
 
 
 def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
+    """
+    Generate plausible pointclouds for each mesh in the dataset matching to the partial views generated from all other
+    meshes.
+    """
     # TODO: Move to config.
     N = 2000  # Number of points to use in partial pointcloud.
     B = 32  # Batch size for CHSEL.
@@ -31,55 +35,66 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
     mmint_utils.make_dir(plausibles_dir)
 
     # Load split info.
-    split_fn = os.path.join(meshes_dir, "splits", split + ".txt")
-    mesh_fns = np.loadtxt(split_fn, dtype=str)
+    split_fn = os.path.join(meshes_dir, "splits", dataset_cfg["splits"][split])
+    meshes = np.atleast_1d(np.loadtxt(split_fn, dtype=str))
+    meshes = [m.replace(".obj", "") for m in meshes]
 
-    # Load partial data.
-    partials_fns = os.listdir(partials_dir)
+    # Apply CHSEL on each mesh in dataset to attempt registration to each partial view.
+    with tqdm(total=len(meshes) * len(meshes) * N_angles) as pbar:
 
-    # Apply CHSEL on each mesh in dataset to attempt registration to partial view.
-    with tqdm(total=len(mesh_fns) * len(partials_fns) * N_angles) as pbar:
-        for mesh_fn in mesh_fns:
-            mesh_fn_full = os.path.join(meshes_dir, mesh_fn)
+        # Outer loop: Meshes to match to partial views.
+        for mesh_name in meshes:
+
+            # Load mesh and build SDF.
+            mesh_fn_full = os.path.join(meshes_dir, mesh_name + ".obj")
             mesh_tri: trimesh.Trimesh = trimesh.load(mesh_fn_full)
             obj = pv.MeshObjectFactory(mesh_fn_full)
             sdf = pv.MeshSDF(obj)
             if use_cached_sdf:
-                sdf = pv.CachedSDF(os.path.splitext(mesh_fn)[0], resolution=0.02,
+                sdf = pv.CachedSDF(mesh_name, resolution=0.02,
                                    range_per_dim=obj.bounding_box(padding=0.1), gt_sdf=sdf, device=d)
 
-            results = dict()
-            for partial_fn in partials_fns:
-                partial_views_dirs = os.listdir(os.path.join(partials_dir, partial_fn))
-                partial_views_dirs.sort(key=lambda x: float(x))
-                source_mesh_fn = os.path.join(meshes_dir, partial_fn + ".obj")
+            # Inner loop: Partial views generated from all meshes.
+            for partial_mesh_name in meshes:
+
+                # Load the source mesh used to generate the partial view.
+                source_mesh_fn = os.path.join(meshes_dir, partial_mesh_name + ".obj")
                 source_mesh = trimesh.load(source_mesh_fn)
 
-                results[partial_fn] = dict()
+                # Directory for the plausibles of the partial view.
+                plausibles_partial_dir = os.path.join(plausibles_dir, partial_mesh_name)
+                mmint_utils.make_dir(plausibles_partial_dir)
 
-                for partial_view_dir in partial_views_dirs:
-                    partial_angle_dir = os.path.join(partials_dir, partial_fn, partial_view_dir)
+                for angle_idx in range(N_angles):
+                    # Directory for the plausibles of the partial view at the given angle.
+                    plausibles_partial_angle_dir = os.path.join(plausibles_partial_dir, "angle_%d" % angle_idx)
+                    mmint_utils.make_dir(plausibles_partial_angle_dir)
+
+                    # Load the partial view information for the given angle.
+                    partial_angle_dir = os.path.join(partials_dir, partial_mesh_name, "angle_%d" % angle_idx)
                     pointcloud = utils.load_pointcloud(os.path.join(partial_angle_dir, "pointcloud.ply"))[:, :3]
                     free_pointcloud = utils.load_pointcloud(os.path.join(partial_angle_dir, "free_pointcloud.ply"))[:,
                                       :3]
                     angle = mmint_utils.load_gzip_pickle(os.path.join(partial_angle_dir, "info.pkl.gzip"))["angle"]
 
-                    # Downsample partial pointcloud.
+                    # Downsample partial surface pointcloud.
                     np.random.shuffle(pointcloud)
                     pointcloud = torch.from_numpy(pointcloud[:N]).to(d).float()
 
-                    # Filter free points to lie in ball around object.
-                    free_pointcloud = free_pointcloud[np.linalg.norm(free_pointcloud, axis=1) < 1.1]
+                    # Filter free points to lie in ball around object and downsample.
+                    free_pointcloud = free_pointcloud[np.linalg.norm(free_pointcloud, axis=1) < 1.4]
                     np.random.shuffle(free_pointcloud)
                     free_pointcloud = torch.from_numpy(free_pointcloud[:N]).to(d).float()
 
                     # Setup semantics of pointcloud.
-                    sem_sdf = np.zeros((N,))
-                    sem_free = [chsel.SemanticsClass.FREE] * N
+                    sem_sdf = np.zeros((len(pointcloud),))
+                    sem_free = [chsel.SemanticsClass.FREE] * len(free_pointcloud)
 
                     # Combine pointclouds to send to CHSEL.
                     points = torch.cat([pointcloud, free_pointcloud], dim=0)
                     semantics = sem_sdf.tolist() + sem_free
+
+                    assert len(points) == len(semantics)
 
                     # Visualize the points being used.
                     if vis:
@@ -98,16 +113,12 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                                                      rot=pk.euler_angles_to_matrix(euler_angles, "XYZ"), device=d)
                     random_init_tsf = random_init_tsf.get_matrix()
 
+                    # Run CHSEL to register mesh to the partial view.
                     registration = chsel.CHSEL(sdf, points, semantics, qd_iterations=100, free_voxels_resolution=0.02)
                     res, all_solutions = registration.register(iterations=15, batch=B, initial_tsf=random_init_tsf)
 
                     if vis:
-                        # print the sorted RMSE for each iteration
-                        print(torch.sort(registration.res_history[-1].rmse).values)
-
-                        # res.RTs.R, res.RTs.T, res.RTs.s are the similarity transform parameters
-                        # get 30 4x4 transform matrix for homogeneous coordinates
-                        world_to_link = chsel.solution_to_world_to_link_matrix(registration.res_history[-1])
+                        world_to_link = chsel.solution_to_world_to_link_matrix(res)
                         link_to_world = world_to_link.inverse()
 
                         # Transform meshes based on results.
@@ -126,15 +137,11 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                             *mesh_estimates
                         )
 
-                    results[partial_fn][angle] = {
-                        "res": res,
-                        "all_solutions": all_solutions
-                    }
+                    # Save the results.
+                    mmint_utils.save_gzip_pickle(res,
+                                                 os.path.join(plausibles_partial_angle_dir, "%s.pkl.gzip" % mesh_name))
 
                     pbar.update()
-
-            # Save results.
-            mmint_utils.save_gzip_pickle(results, os.path.join(plausibles_dir, mesh_fn + ".pkl"))
 
 
 if __name__ == '__main__':

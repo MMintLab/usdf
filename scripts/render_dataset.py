@@ -25,14 +25,14 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     mmint_utils.make_dir(partials_dir)
 
     # Load split info.
-    split_fn = os.path.join(meshes_dir, "splits", split + ".txt")
-    mesh_fns = np.loadtxt(split_fn, dtype=str)
+    split_fn = os.path.join(meshes_dir, "splits", dataset_cfg["splits"][split])
+    meshes = np.atleast_1d(np.loadtxt(split_fn, dtype=str))
 
     # Build scene.
     scene = pyrender.Scene()
 
     # Add camera to the scene.
-    yfov = np.pi / 3.0
+    yfov = np.pi / 2.0
     camera = pyrender.PerspectiveCamera(yfov=yfov, aspectRatio=1.0)
     camera_pose = np.eye(4)
     camera_pose[:3, :3] = tf3d.euler.euler2mat(np.pi / 2.0, 0, 0, axes="sxyz")
@@ -46,7 +46,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     # Add renderer.
     r = pyrender.OffscreenRenderer(128, 128)
 
-    for mesh_fn in tqdm(mesh_fns):
+    for mesh_fn in tqdm(meshes):
         mesh_path = os.path.join(meshes_dir, mesh_fn)
         mesh_tri: trimesh.Trimesh = trimesh.load(mesh_path)
         mesh = pyrender.Mesh.from_trimesh(mesh_tri)
@@ -56,7 +56,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
         mesh_partials_path = os.path.join(partials_dir, mesh_fn[:-4])
         mmint_utils.make_dir(mesh_partials_path)
 
-        for angle in np.linspace(0, 2 * np.pi, N + 1)[:-1]:
+        for angle_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N + 1)[:-1]):
             object_pose = np.eye(4)
             object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle, axes="sxyz")
             scene.set_pose(mesh_node, object_pose)
@@ -80,7 +80,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                                Points(free_pointcloud[:, :3], c="blue", alpha=0.1))
 
             # Save partials.
-            mesh_partials_angle_path = os.path.join(mesh_partials_path, f"{angle:.2f}")
+            mesh_partials_angle_path = os.path.join(mesh_partials_path, "angle_%d" % angle_idx)
             mmint_utils.make_dir(mesh_partials_angle_path)
             utils.save_pointcloud(pointcloud, os.path.join(mesh_partials_angle_path, "pointcloud.ply"))
             utils.save_pointcloud(free_pointcloud, os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
