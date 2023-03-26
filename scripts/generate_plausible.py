@@ -112,6 +112,9 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                     random_init_tsf = pk.Transform3d(pos=torch.zeros((B, 3), device=d),
                                                      rot=pk.euler_angles_to_matrix(euler_angles, "XYZ"), device=d)
                     random_init_tsf = random_init_tsf.get_matrix()
+                    # random_init_tsf = pk.Transform3d(pos=torch.randn((B, 3), device=d),
+                    #                                  rot=pk.random_rotations(B, device=d), device=d)
+                    # random_init_tsf = random_init_tsf.get_matrix()
 
                     # Run CHSEL to register mesh to the partial view.
                     registration = chsel.CHSEL(sdf, points, semantics, qd_iterations=100, free_voxels_resolution=0.02)
