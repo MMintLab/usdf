@@ -10,7 +10,6 @@ import pytorch_kinematics as pk
 import torch
 import trimesh
 from tqdm import tqdm
-import open3d as o3d
 from usdf import utils
 
 from vedo import Plotter, Points, Mesh
@@ -22,10 +21,11 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
     meshes.
     """
     # TODO: Move to config.
-    N = 2000  # Number of points to use in partial pointcloud.
+    surface_N = 1000  # Number of points to use in partial pointcloud.
+    free_N = 2000  # Number of points to use in free pointcloud.
     B = 32  # Batch size for CHSEL.
     N_angles = 8  # Number of angles each mesh is rendered from.
-    use_cached_sdf: bool = True
+    use_cached_sdf: bool = False
     d = "cuda" if torch.cuda.is_available() else "cpu"
 
     meshes_dir = dataset_cfg["meshes_dir"]
@@ -79,12 +79,12 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
 
                     # Downsample partial surface pointcloud.
                     np.random.shuffle(pointcloud)
-                    pointcloud = torch.from_numpy(pointcloud[:N]).to(d).float()
+                    pointcloud = torch.from_numpy(pointcloud[:surface_N]).to(d).float()
 
                     # Filter free points to lie in ball around object and downsample.
                     free_pointcloud = free_pointcloud[np.linalg.norm(free_pointcloud, axis=1) < 1.4]
                     np.random.shuffle(free_pointcloud)
-                    free_pointcloud = torch.from_numpy(free_pointcloud[:N]).to(d).float()
+                    free_pointcloud = torch.from_numpy(free_pointcloud[:free_N]).to(d).float()
 
                     # Setup semantics of pointcloud.
                     sem_sdf = np.zeros((len(pointcloud),))
@@ -138,8 +138,15 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                         )
 
                     # Save the results.
-                    mmint_utils.save_gzip_pickle(res,
-                                                 os.path.join(plausibles_partial_angle_dir, "%s.pkl.gzip" % mesh_name))
+                    mmint_utils.save_gzip_pickle(
+                        {
+                            "res": res,
+                            "pointcloud": pointcloud.cpu().numpy(),  # Also save downsampled pointclouds.
+                            "free_pointcloud": free_pointcloud.cpu().numpy(),
+                            "angle": angle,
+                        },
+                        os.path.join(plausibles_partial_angle_dir, "%s.pkl.gzip" % mesh_name)
+                    )
 
                     pbar.update()
 
