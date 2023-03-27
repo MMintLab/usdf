@@ -44,7 +44,7 @@ class UncertaintyDataset(torch.utils.data.Dataset):
 
                     # Append to data arrays.
                     query_points = sdf_data["query_points"]
-                    sdf_labels = np.concatenate(sdf_labels, sdf_data["sdf_labels"], axis=1)
+                    sdf_labels = np.concatenate([sdf_labels, sdf_data["sdf_values"]], axis=1)
 
                 # Append to data arrays.
                 self.example_idcs.append(example_idx)
@@ -52,13 +52,13 @@ class UncertaintyDataset(torch.utils.data.Dataset):
                 self.sdf.append(sdf_labels)
 
     def __len__(self):
-        return len(self.example_idcs)
+        return 1  # len(self.example_idcs)
 
     def __getitem__(self, index: int):
         data_dict = {
-            "example_idx": self.example_idcs[index],
-            "query_points": self.query_points[index],
-            "sdf": self.sdf[index],
+            "example_idx": np.array([self.example_idcs[index]]),
+            "query_points": self.query_points[index][8433:8434],
+            "sdf": self.sdf[index][8433:8434],
         }
 
         return data_dict

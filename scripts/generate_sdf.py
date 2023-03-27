@@ -18,16 +18,19 @@ def sample_points_from_ball(n_points, ball_radius=1.1):
     Args:
         n_points: number points to return
         ball_radius: radius of ball to sample from
-    Returns: pointcloud of sampled query points
+    Returns: point cloud of sampled query points
     """
-    # Sample points in the unit cube.
-    points = np.random.uniform(-1, 1, size=(n_points, 3))
+    points = np.empty((0, 3), dtype=np.float32)
 
-    # Reject points outside the unit ball.
-    mask = np.linalg.norm(points, axis=1) <= ball_radius
-    points = points[mask]
+    while len(points) < n_points:
+        # Sample points in the unit cube.
+        new_points = np.random.uniform(-1, 1, size=(n_points, 3))
 
-    return points
+        # Reject points outside the unit ball.
+        mask = np.linalg.norm(new_points, axis=1) <= ball_radius
+        points = np.concatenate([points, new_points[mask]], axis=0)
+
+    return points[:n_points]
 
 
 def get_sdf_query_points(mesh: trimesh.Trimesh, n_random: int = 10000, n_off_surface: int = 10000,
@@ -158,5 +161,5 @@ if __name__ == '__main__':
     parser.set_defaults(vis=False)
     args = parser.parse_args()
 
-    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)
+    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)["data"][args.split]
     generate_sdf(dataset_cfg_, args.split)

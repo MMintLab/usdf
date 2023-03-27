@@ -100,5 +100,5 @@ if __name__ == '__main__':
     parser.add_argument("split", type=str, help="Split to visualize.")
     args = parser.parse_args()
 
-    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)
+    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)["data"][args.split]
     vis_plausible(dataset_cfg_, args.split)

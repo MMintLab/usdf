@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from usdf.models import meta_modules
+from usdf.loss import hypo_weight_loss
 
 
 class USDF(nn.Module):
@@ -19,6 +20,9 @@ class USDF(nn.Module):
             self.device)
         nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
 
+    def encode_example(self, example_idx: torch.Tensor):
+        return self.object_code(example_idx)
+
     def forward(self, query_points: torch.Tensor, z_object: torch.Tensor):
         model_in = {
             "coords": query_points,
@@ -26,10 +30,19 @@ class USDF(nn.Module):
         }
         model_out = self.object_model(model_in)
 
+        sdf_means = model_out["model_out"][..., 0]
+        sdf_var = torch.exp(model_out["model_out"][..., 1])  # Ensure positive.
+
         out_dict = {
             "query_points": model_out["model_in"],
-            "sdf": model_out["model_out"],
+            "sdf_means": sdf_means,
+            "sdf_var": sdf_var,
             "hypo_params": model_out["hypo_params"],
             "embedding": z_object,
         }
         return out_dict
+
+    def regularization_loss(self, out_dict: dict):
+        hypo_params = out_dict["hypo_params"]
+        hypo_loss = hypo_weight_loss(hypo_params)
+        return hypo_loss
