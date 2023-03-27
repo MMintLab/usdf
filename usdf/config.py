@@ -1,4 +1,5 @@
 from torchvision import transforms
+from usdf.data.uncertainty_dataset import UncertaintyDataset
 
 method_dict = {}
 
@@ -55,7 +56,10 @@ def get_dataset(mode, cfg):
     # Build dataset transforms.
     transforms_ = get_transforms(cfg)
 
-    raise Exception("Unknown requested dataset type: %s" % dataset_type)
+    if dataset_type == "UncertaintyDataset":
+        dataset = UncertaintyDataset(cfg['data'], mode, transform=transforms_)
+    else:
+        raise Exception("Unknown requested dataset type: %s" % dataset_type)
 
     return dataset
 

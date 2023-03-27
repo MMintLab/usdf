@@ -143,7 +143,7 @@ def generate_sdf(dataset_cfg: dict, split: str, vis: bool = False):
 
                     # Save the SDF values.
                     mmint_utils.save_gzip_pickle({
-                        "query_points": query_points,
+                        "query_points": query_points,  # TODO: This only needs to be saved once.
                         "sdf_values": sdf_values,
                     }, os.path.join(example_angle_sdf_dir, "%s.pkl.gzip" % match_mesh_name))
 
