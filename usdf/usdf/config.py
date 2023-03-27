@@ -1,9 +1,13 @@
-from usdf.usdf_gaussian.training import Trainer
-from usdf.usdf_gaussian.generation import Generator
+from usdf.usdf.models.uncertain_sdf import USDF
+from usdf.usdf.training import Trainer
+from usdf.usdf.generation import Generator
 
 
 def get_model(cfg, dataset, device=None):
-    return None
+    num_examples = len(dataset)
+
+    model = USDF(num_examples, cfg["model"]["z_object_size"], device).to(device)
+    return model
 
 
 def get_trainer(cfg, model, device=None):

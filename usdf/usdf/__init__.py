@@ -1,4 +1,4 @@
-from usdf.usdf_gaussian import (
+from usdf.usdf import (
     config, training, generation
 )
 

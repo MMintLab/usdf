@@ -54,7 +54,6 @@ def vis_plausible(dataset_cfg: dict, split: str):
                 angle = res_dict["angle"]
 
                 # res.RTs.R, res.RTs.T, res.RTs.s are the similarity transform parameters
-                # get 30 4x4 transform matrix for homogeneous coordinates
                 world_to_link = chsel.solution_to_world_to_link_matrix(res)
                 link_to_world = world_to_link.inverse()
 
