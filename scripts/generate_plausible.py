@@ -10,7 +10,7 @@ import pytorch_kinematics as pk
 import torch
 import trimesh
 from tqdm import tqdm
-from usdf import utils
+from usdf.utils import utils
 
 from vedo import Plotter, Points, Mesh
 

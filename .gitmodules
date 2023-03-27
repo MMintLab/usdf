@@ -1,3 +1,6 @@
 [submodule "3rd/Manifold"]
 	path = 3rd/Manifold
 	url = git@github.com:hjwdzh/Manifold.git
+[submodule "3rd/pytorch-meta"]
+	path = 3rd/pytorch-meta
+	url = git@github.com:tristandeleu/pytorch-meta.git

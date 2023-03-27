@@ -5,7 +5,7 @@ import mmint_utils
 import numpy as np
 import trimesh
 from tqdm import tqdm
-from usdf import vedo_utils
+from usdf.utils import vedo_utils
 from vedo import Plotter, Mesh, Sphere
 
 

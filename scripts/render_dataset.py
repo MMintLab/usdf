@@ -7,8 +7,8 @@ import pyrender
 import trimesh
 import transforms3d as tf3d
 from tqdm import tqdm
-from usdf import utils
-from usdf.render_utils import depth_to_pointcloud, depth_to_free_points
+from usdf.utils import utils
+from usdf.utils.render_utils import depth_to_pointcloud, depth_to_free_points
 from vedo import Plotter, Points, Mesh
 
 os.environ["PYOPENGL_PLATFORM"] = "egl"

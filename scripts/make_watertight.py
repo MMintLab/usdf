@@ -1,6 +1,6 @@
 import argparse
 
-from usdf.watertight_utils import make_mesh_watertight
+from usdf.utils.watertight_utils import make_mesh_watertight
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate a watertight mesh from a .')

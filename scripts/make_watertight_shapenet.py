@@ -4,7 +4,7 @@ import os
 import mmint_utils
 from tqdm import tqdm
 
-from usdf.watertight_utils import make_mesh_watertight
+from usdf.utils.watertight_utils import make_mesh_watertight
 
 
 def generate_watertight_shapenet(category_dir, out_dir):

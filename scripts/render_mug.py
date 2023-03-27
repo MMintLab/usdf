@@ -2,10 +2,9 @@ import numpy as np
 import trimesh
 import pyrender
 import transforms3d as tf3d
-from matplotlib import pyplot as plt
 from usdf import utils
 
-from usdf.render_utils import depth_to_pointcloud
+from usdf.utils.render_utils import depth_to_pointcloud
 from vedo import Plotter, Points, Mesh
 
 scene = pyrender.Scene()
