@@ -10,10 +10,11 @@ class BaseGenerator(object):
     various model classes. Not all representations need to necessarily be implemented.
     """
 
-    def __init__(self, cfg: dict, model: nn.Module, device: torch.device = None):
+    def __init__(self, cfg: dict, model: nn.Module, generation_cfg: dict, device: torch.device = None):
         self.cfg = cfg
         self.model = model
         self.device = device
+        self.generation_cfg = generation_cfg
 
         self.generates_mesh = False
         self.generates_pointcloud = False
