@@ -13,7 +13,7 @@ def preprocess_mug(mug_dir: str, out_dir: str, vis: bool = False):
     """
     Preprocess mug data. Reorient to consistent coordinate system.
     """
-    mug_fns = os.listdir(mug_dir)
+    mug_fns = [f for f in os.listdir(mug_dir) if f.endswith(".obj")]
     mmint_utils.make_dir(out_dir)
 
     for mug_fn in tqdm(mug_fns):

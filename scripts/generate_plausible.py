@@ -84,7 +84,8 @@ def generate_plausible(dataset_cfg: dict, split: str, vis: bool = True):
                     # Filter free points to lie in ball around object and downsample.
                     free_pointcloud = free_pointcloud[np.linalg.norm(free_pointcloud, axis=1) < 1.4]
                     np.random.shuffle(free_pointcloud)
-                    free_pointcloud = torch.from_numpy(free_pointcloud[:free_N]).to(d).float()
+                    # free_pointcloud = torch.from_numpy(free_pointcloud[:free_N]).to(d).float()
+                    free_pointcloud = torch.from_numpy(free_pointcloud).to(d).float()
 
                     # Setup semantics of pointcloud.
                     sem_sdf = np.zeros((len(pointcloud),))
@@ -161,5 +162,5 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--vis", action="store_true", help="Visualize results.")
     args = parser.parse_args()
 
-    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)
+    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg_fn)["data"][args.split]
     generate_plausible(dataset_cfg_, args.split, args.vis)
