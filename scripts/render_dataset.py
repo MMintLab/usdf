@@ -100,6 +100,6 @@ if __name__ == '__main__':
     parser.set_defaults(vis=False)
     args = parser.parse_args()
 
-    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg)
+    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg)["data"][args.split]
 
     render_dataset(dataset_cfg_, args.split, args.vis)
