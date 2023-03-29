@@ -14,7 +14,7 @@ class USDF(nn.Module):
         # Setup the object module.
         # self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=2,
         #                                                 hyper_in_features=self.z_object_size, hl=2).to(self.device)
-        self.object_model = mlp.MLP(3 + z_object_size, 2, hidden_sizes=[16, 16]).to(self.device)
+        self.object_model = mlp.MLP(3 + z_object_size, 2, hidden_sizes=[8, 8]).to(self.device)
 
         # Setup latent embeddings (used during training).
         self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(True).to(

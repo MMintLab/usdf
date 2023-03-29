@@ -54,7 +54,7 @@ class Trainer(BaseTrainer):
                     'epoch_it': epoch_it,
                     'it': it,
                 }
-                # torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
+                torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
                 break
 
             loss = None
@@ -80,7 +80,7 @@ class Trainer(BaseTrainer):
                     'epoch_it': epoch_it,
                     'it': it,
                 }
-                # torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
+                torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
 
     def compute_train_loss(self, data, it):
         example_idx = torch.from_numpy(data["example_idx"]).to(self.device)
@@ -95,9 +95,9 @@ class Trainer(BaseTrainer):
         loss_dict = dict()
 
         # SDF loss.
-        means = out_dict["sdf_means"].flatten().repeat(sdf_labels.shape[-1])
-        stds = out_dict["sdf_var"].flatten().repeat(sdf_labels.shape[-1])
-        sdf_loss = F.gaussian_nll_loss(means, sdf_labels.flatten(), stds)
+        mean = out_dict["sdf_means"].flatten().repeat_interleave(sdf_labels.shape[-1])
+        var = out_dict["sdf_var"].flatten().repeat_interleave(sdf_labels.shape[-1])
+        sdf_loss = F.gaussian_nll_loss(mean, sdf_labels.flatten(), var)
         loss_dict["sdf_loss"] = sdf_loss
 
         # Latent embedding loss: well-formed embedding.
@@ -118,19 +118,19 @@ class Trainer(BaseTrainer):
         # Plot predicted gaussian versus gaussian of GT.
 
         # Calculate mean and standard deviation of sdf labels.
-        sdf_labels_np = sdf_labels.flatten().cpu().numpy()
-        sdf_labels_mean = np.mean(sdf_labels_np)
-        sdf_labels_std = np.std(sdf_labels_np)
+        # sdf_labels_np = sdf_labels.flatten().cpu().numpy()
+        # sdf_labels_mean = np.mean(sdf_labels_np)
+        # sdf_labels_std = np.std(sdf_labels_np)
 
-        plt.figure()
-        sdf_labels_np = sdf_labels.flatten().cpu().numpy()
-        plt.scatter(sdf_labels_np, np.zeros(len(sdf_labels_np)),
-                    label="Ground truth SDF values")
-        x = np.linspace(min(sdf_labels_np) - 0.01, max(sdf_labels_np) + 0.01, 100)
-        plt.plot(x, stats.norm.pdf(x, out_dict["sdf_means"].item(), out_dict["sdf_var"].item()))
-        plt.plot(x, stats.norm.pdf(x, sdf_labels_mean, sdf_labels_std))
-        plt.savefig("out/train_gaussian_animate/{}.png".format(it))
-        # plt.show()
-        plt.close()
+        # plt.figure()
+        # sdf_labels_np = sdf_labels.flatten().cpu().numpy()
+        # plt.scatter(sdf_labels_np, np.zeros(len(sdf_labels_np)),
+        #             label="Ground truth SDF values")
+        # x = np.linspace(min(sdf_labels_np) - 0.01, max(sdf_labels_np) + 0.01, 100)
+        # plt.plot(x, stats.norm.pdf(x, out_dict["sdf_means"].item(), np.sqrt(out_dict["sdf_var"].item())))
+        # plt.plot(x, stats.norm.pdf(x, sdf_labels_mean, sdf_labels_std))
+        # plt.savefig("out/train_gaussian_animate/{}.png".format(it))
+        # # plt.show()
+        # plt.close()
 
         return loss_dict, out_dict

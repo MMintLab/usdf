@@ -57,8 +57,8 @@ class UncertaintyDataset(torch.utils.data.Dataset):
     def __getitem__(self, index: int):
         data_dict = {
             "example_idx": np.array([self.example_idcs[index]]),
-            "query_points": self.query_points[index][8433:8434],
-            "sdf": self.sdf[index][8433:8434],
+            "query_points": self.query_points[index],  # [8433:8434],
+            "sdf": self.sdf[index],  # [8433:8434],
         }
 
         return data_dict
