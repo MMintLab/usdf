@@ -8,7 +8,7 @@ data:
       train: train_single_v1.txt
 training:
   out_dir: out/models/single_v1/
-  learning_rate: 1.0e-6
+  learning_rate: 0.001
   epochs: 10000
   epochs_per_save: 100
   epochs_per_validation: 100
@@ -17,4 +17,4 @@ training:
     embedding_loss: 0.0
     reg_loss: 0.0
 model:
-  z_object_size: 16
+  z_object_size: 8
