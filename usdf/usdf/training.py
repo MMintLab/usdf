@@ -9,8 +9,6 @@ from usdf.data.uncertainty_dataset import UncertaintyDataset
 from usdf.training import BaseTrainer
 import usdf.loss as usdf_losses
 import torch.nn.functional as F
-import matplotlib.pyplot as plt
-import scipy.stats as stats
 
 
 class Trainer(BaseTrainer):
