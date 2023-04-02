@@ -20,11 +20,11 @@ os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     dtype = torch.float
-    N = 8  # Number of angles to render mesh from.
     free_space_surface_epsilon = 0.01
 
     meshes_dir = dataset_cfg["meshes_dir"]
     dataset_dir = dataset_cfg["dataset_dir"]
+    N_angles = dataset_cfg["N_angles"]  # Number of angles to render from.
     mmint_utils.make_dir(dataset_dir)
 
     partials_dir = os.path.join(dataset_dir, "partials")
@@ -53,7 +53,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
     # Add renderer.
     r = pyrender.OffscreenRenderer(256, 256)
 
-    with tqdm(total=len(meshes) * N) as pbar:
+    with tqdm(total=len(meshes) * N_angles) as pbar:
         for mesh_fn in meshes:
             mesh_path = os.path.join(meshes_dir, mesh_fn)
             obj = pv.MeshObjectFactory(mesh_path)
@@ -65,7 +65,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
             mesh_partials_path = os.path.join(partials_dir, mesh_fn[:-4])
             mmint_utils.make_dir(mesh_partials_path)
 
-            for angle_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N + 1)[:-1]):
+            for angle_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N_angles + 1)[:-1]):
                 object_to_world_tf = pk.RotateAxisAngle(angle, "Z", dtype=dtype)
                 # object_pose = np.eye(4)
                 # object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle, axes="sxyz")

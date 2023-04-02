@@ -1,9 +1,11 @@
+from usdf.deepsdf.models.deepsdf import DeepSDF
 from usdf.deepsdf.generation import Generator
 from usdf.deepsdf.training import Trainer
 
 
 def get_model(cfg, dataset, device=None):
-    return None
+    deep_sdf = DeepSDF(len(dataset), cfg.z_object_size, device)
+    return deep_sdf
 
 
 def get_trainer(cfg, model, device=None):

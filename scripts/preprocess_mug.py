@@ -9,7 +9,7 @@ from usdf.utils import vedo_utils
 from vedo import Plotter, Mesh, Sphere
 
 
-def preprocess_mug(mug_dir: str, out_dir: str, vis: bool = False):
+def preprocess_mug(mug_dir: str, out_dir: str, center: bool = False, vis: bool = False):
     """
     Preprocess mug data. Reorient to consistent coordinate system.
     """
@@ -24,8 +24,9 @@ def preprocess_mug(mug_dir: str, out_dir: str, vis: bool = False):
         mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
 
         # Center mesh.
-        center = np.mean(np.array(mesh.bounds), axis=0)
-        mesh.apply_transform(trimesh.transformations.translation_matrix(-center))
+        if center:
+            center = np.mean(np.array(mesh.bounds), axis=0)
+            mesh.apply_transform(trimesh.transformations.translation_matrix(-center))
 
         # Scale mesh to fit in unit sphere.
         r = np.linalg.norm(mesh.vertices, axis=1).max()
@@ -48,8 +49,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Preprocess mug data.")
     parser.add_argument("mug_dir", type=str, help="Path to mug data.")
     parser.add_argument("out_dir", type=str, help="Path to output directory.")
+    parser.add_argument("--center", action="store_true", help="Center the mesh.")
     parser.add_argument("--vis", action="store_true", help="Visualize the results.")
     parser.set_defaults(vis=False)
+    parser.set_defaults(center=False)
     args = parser.parse_args()
 
-    preprocess_mug(args.mug_dir, args.out_dir, args.vis)
+    preprocess_mug(args.mug_dir, args.out_dir, args.center, args.vis)

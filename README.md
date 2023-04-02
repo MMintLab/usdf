@@ -34,3 +34,6 @@ python scripts/make_mesh_watertight.py <path_to_input_mesh> <path_to_output_mesh
 python scripts/make_watertight_shapenet.py <path_to_input_category> <output_dir>
 ```
 
+## TODO:
+
+- Fix the way splits are generated/loaded to be separated from the datasets.
