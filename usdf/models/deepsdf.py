@@ -25,4 +25,4 @@ class DeepSDFObjectModule(nn.Module):
 
         if self.final_activation == "tanh":
             model_out = torch.tanh(model_out)
-        return model_out
+        return model_out.squeeze(-1)

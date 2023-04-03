@@ -4,7 +4,7 @@ from usdf.deepsdf.training import Trainer
 
 
 def get_model(cfg, dataset, device=None):
-    deep_sdf = DeepSDF(len(dataset), cfg.z_object_size, device)
+    deep_sdf = DeepSDF(len(dataset), cfg["model"]["z_object_size"], device)
     return deep_sdf
 
 
