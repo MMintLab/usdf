@@ -43,7 +43,7 @@ def load_gt_results(dataset, dataset_cfg, n, device=None):
     for idx in range(n):
         data_dict = dataset[idx]
 
-        mesh_fn = os.path.join(meshes_dir, dataset.meshes[data_dict["mesh_idx"]])
+        mesh_fn = os.path.join(meshes_dir, dataset.meshes[data_dict["mesh_idx"][0]] + ".obj")
         example_mesh = trimesh.load(mesh_fn)
 
         object_pose = data_dict["object_pose"]
@@ -51,4 +51,4 @@ def load_gt_results(dataset, dataset_cfg, n, device=None):
 
         meshes.append(example_mesh)
 
-    return meshes, None
+    return meshes

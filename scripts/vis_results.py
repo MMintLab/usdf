@@ -10,6 +10,7 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test"):
     # Load dataset.
     dataset_cfg, dataset = load_dataset_from_config(dataset_cfg, dataset_mode=mode)
     num_examples = len(dataset)
+    dataset_cfg = dataset_cfg["data"][args.mode]
 
     # Load ground truth information.
     gt_meshes = load_gt_results(dataset, dataset_cfg, num_examples)
