@@ -39,7 +39,7 @@ class SDFDataset(torch.utils.data.Dataset):
         for mesh_idx, partial_mesh_name in enumerate(self.meshes):
             example_sdf_dir = os.path.join(sdfs_dir, partial_mesh_name)
             example_partial_dir = os.path.join(partials_dir, partial_mesh_name)
-            for angle_idx in range(1):  # range(self.N_angles):
+            for angle_idx in range(self.N_angles):
                 example_angle_sdf_dir = os.path.join(example_sdf_dir, "angle_%d" % angle_idx)
                 example_angle_partial_dir = os.path.join(example_partial_dir, "angle_%d" % angle_idx)
 
