@@ -52,7 +52,7 @@ class UncertaintyDataset(torch.utils.data.Dataset):
                 self.sdf.append(sdf_labels)
 
     def __len__(self):
-        return 1  # len(self.example_idcs)
+        return len(self.example_idcs)
 
     def __getitem__(self, index: int):
         data_dict = {

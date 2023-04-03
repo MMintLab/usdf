@@ -9,11 +9,12 @@ import trimesh
 import transforms3d as tf3d
 from scripts.generate_sdf import get_sdf_values
 from tqdm import tqdm
-from usdf.utils import utils
+from usdf.utils import utils, vedo_utils
 from usdf.utils.render_utils import depth_to_pointcloud, depth_to_free_points
 from vedo import Plotter, Points, Mesh
 import pytorch_volumetric as pv
 import pytorch_kinematics as pk
+
 
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 
@@ -66,7 +67,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
             mmint_utils.make_dir(mesh_partials_path)
 
             for angle_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N_angles + 1)[:-1]):
-                object_to_world_tf = pk.RotateAxisAngle(angle, "Z", dtype=dtype)
+                object_to_world_tf = pk.RotateAxisAngle(angle, "Z", dtype=dtype, degrees=False)
                 # object_pose = np.eye(4)
                 # object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle, axes="sxyz")
                 scene.set_pose(mesh_node, object_to_world_tf.get_matrix().cpu().numpy()[0])
@@ -94,9 +95,12 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                     mesh_tri_rot = mesh_tri.copy().apply_transform(object_to_world_tf.get_matrix().cpu().numpy()[0])
 
                     plt = Plotter()
-                    plt.at(0).show(Points(pointcloud[:, :3], c="green"),
-                                   Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces], alpha=0.5),
-                                   Points(free_pointcloud_world[:, :3], c="blue", alpha=1.0))
+                    plt.at(0).show(
+                        Points(pointcloud[:, :3], c="green"),
+                        Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces], alpha=0.5),
+                        vedo_utils.draw_origin(0.1),
+                        # Points(free_pointcloud_world[:, :3], c="blue", alpha=1.0)
+                    )
 
                 # Save partials.
                 mesh_partials_angle_path = os.path.join(mesh_partials_path, "angle_%d" % angle_idx)
