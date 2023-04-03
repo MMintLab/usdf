@@ -29,6 +29,7 @@ class SDFDataset(torch.utils.data.Dataset):
 
         # Data arrays.
         self.example_idcs = []  # Index of the partial view.
+        self.mesh_idcs = []  # Index of the mesh for this example.
         self.query_points = []  # Query points for SDF.
         self.sdf = []  # SDF values at query points.
         self.object_pose = []  # Object pose.
@@ -50,6 +51,7 @@ class SDFDataset(torch.utils.data.Dataset):
 
                 # Append to data arrays.
                 self.example_idcs.append(mesh_idx * self.N_angles + angle_idx)
+                self.mesh_idcs.append(mesh_idx)
                 self.query_points.append(sdf_data["query_points"])
                 self.sdf.append(sdf_data["sdf_values"])
                 self.object_pose.append(sdf_data["object_pose"])
@@ -62,6 +64,7 @@ class SDFDataset(torch.utils.data.Dataset):
         data_dict = {
             "partial_pointcloud": self.partial_pointcloud[index],
             "example_idx": np.array([self.example_idcs[index]]),
+            "mesh_idx": np.array([self.mesh_idcs[index]]),
             "query_points": self.query_points[index],
             "object_pose": self.object_pose[index],
             "sdf": self.sdf[index],
