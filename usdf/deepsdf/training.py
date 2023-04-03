@@ -94,7 +94,7 @@ class Trainer(BaseTrainer):
 
         # SDF loss.
         pred_sdf = out_dict["sdf"]
-        sdf_loss = usdf_losses.sdf_loss(sdf_labels, pred_sdf, clip=0.1)
+        sdf_loss = usdf_losses.sdf_loss(sdf_labels, pred_sdf)
         loss_dict["sdf_loss"] = sdf_loss
 
         # Latent embedding loss: well-formed embedding.

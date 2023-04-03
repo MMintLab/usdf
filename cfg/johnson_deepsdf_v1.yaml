@@ -15,7 +15,7 @@ training:
   epochs_per_validation: 100
   loss_weights:
     sdf_loss: 1.0
-    embedding_loss: 0.0
+    embedding_loss: 100.0
     reg_loss: 0.0
 model:
   z_object_size: 128
