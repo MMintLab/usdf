@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from usdf.models import mlp
+from usdf.models.deepsdf import DeepSDFObjectModule
 
 
 class DeepSDF(nn.Module):
@@ -13,7 +14,7 @@ class DeepSDF(nn.Module):
 
         # Setup the DeepSDF module.
         # Note: Might need to make this more complex.
-        self.object_model = mlp.build_mlp(3 + self.z_object_size, 1, hidden_sizes=[8, 8, 8]).to(self.device)
+        self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size).to(self.device)
 
         # Setup latent embeddings (used during training).
         self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(True).to(
@@ -24,9 +25,7 @@ class DeepSDF(nn.Module):
         return self.object_code(example_idx)
 
     def forward(self, query_points: torch.Tensor, z_object: torch.Tensor):
-        z_object_ = z_object.unsqueeze(1).repeat(1, query_points.shape[1], 1)
-        model_in = torch.cat([query_points, z_object_], dim=-1)
-        model_out = self.object_model(model_in)
+        model_out = self.object_model(query_points, z_object)
 
         out_dict = {
             "query_points": query_points,
