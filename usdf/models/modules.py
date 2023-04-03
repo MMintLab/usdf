@@ -1,5 +1,5 @@
-from torchmeta.modules.module import MetaModule
-from torchmeta.modules.container import MetaSequential
+# from torchmeta.modules.module import MetaModule
+# from torchmeta.modules.container import MetaSequential
 from usdf.utils.torchmeta_utils import get_subdict
 import numpy as np
 from torch import nn
