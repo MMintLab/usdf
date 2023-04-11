@@ -7,6 +7,6 @@ setuptools.setup(
     url="https://github.com/MMintLab/usdf",
     description="Uncertainty SDF",
     install_requires=[
-        'numpy',
+        'numpy', 'trimesh', 'transforms3d'
     ]
 )

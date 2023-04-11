@@ -2,7 +2,31 @@ import torch
 from torch import nn
 
 from usdf.generation import BaseGenerator
+from usdf.utils.infer_utils import inference_by_optimization
 from usdf.utils.marching_cubes import create_mesh
+import usdf.loss as usdf_losses
+
+
+def get_surface_loss_fn(embed_weight: float):
+    def surface_loss_fn(model, latent, data_dict, device):
+        # Pull out relevant data.
+        surface_coords_ = torch.from_numpy(data_dict["partial_pointcloud"]).to(device).float().unsqueeze(0)
+
+        # Predict with updated latents.
+        pred_dict_ = model.forward(surface_coords_, latent)
+
+        # loss = 0.0
+
+        # Loss: all points on surface should have SDF = 0.0.
+        sdf_loss = torch.mean(torch.abs(pred_dict_["sdf"]))
+
+        # Latent embedding loss: shouldn't drift too far from data.
+        embedding_loss = usdf_losses.l2_loss(pred_dict_["embedding"], squared=True)
+
+        loss = sdf_loss + (embed_weight * embedding_loss)
+        return loss
+
+    return surface_loss_fn
 
 
 class Generator(BaseGenerator):
@@ -18,8 +42,10 @@ class Generator(BaseGenerator):
         # Check if we have been provided with the latent already.
         if "latent" in metadata:
             latent = metadata["latent"]
-        # else:
-        #     raise NotImplementedError()
+        else:
+            z_object_, _ = inference_by_optimization(self.model, get_surface_loss_fn(100.0), self.model.z_object_size,
+                                                     1, data, device=self.device, verbose=True)
+            latent = z_object_.weight
 
         if self.gen_from_known_latent:
             latent = self.model.encode_example(torch.from_numpy(data["example_idx"]).to(self.device))
