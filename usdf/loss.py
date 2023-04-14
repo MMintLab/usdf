@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn.functional as F
-# from pytorch3d.loss import chamfer_distance
+from chamferdist import ChamferDistance
 
 
 def sdf_loss(gt_sdf: torch.Tensor, pred_sdf: torch.Tensor, clip: float = 1.0):
@@ -37,7 +37,8 @@ def surface_normal_loss(gt_sdf: torch.Tensor, gt_normals: torch.Tensor, pred_nor
 
     # Calculate difference between predicted and gt normals.
     diff = (1.0 - F.cosine_similarity(pred_normals_unit, gt_normals, dim=-1))
-    diff_loss = torch.where(gt_sdf == 0.0, diff, torch.tensor(0.0, dtype=pred_normals.dtype, device=pred_normals.device))
+    diff_loss = torch.where(gt_sdf == 0.0, diff,
+                            torch.tensor(0.0, dtype=pred_normals.dtype, device=pred_normals.device))
 
     # Average error (for surface points).
     norm_loss = diff_loss.sum() / (gt_sdf == 0.0).sum()
@@ -78,6 +79,7 @@ def surface_chamfer_loss(nominal_coords: torch.Tensor, nominal_sdf: torch.Tensor
     predicted_surface_points = pred_def_coords[:, def_on_surf_idx, :]
 
     # Calculate the chamfer distance between the extracted surfaces.
+    chamfer_distance = ChamferDistance()
     c_loss = chamfer_distance(nominal_surface_points, predicted_surface_points)[0]
 
     return c_loss.mean()

@@ -22,6 +22,7 @@ def generate_plausible_basic(dataset_cfg: dict, split: str, vis: bool = True):
     dataset_dir = dataset_cfg["dataset_dir"]
     partials_dir = os.path.join(dataset_dir, "partials")
     plausibles_dir = os.path.join(dataset_dir, "plausibles")
+    mmint_utils.make_dir(plausibles_dir)
 
     # Load split info.
     split_fn = os.path.join(meshes_dir, "splits", dataset_cfg["splits"][split])
@@ -29,9 +30,10 @@ def generate_plausible_basic(dataset_cfg: dict, split: str, vis: bool = True):
     meshes = [m.replace(".obj", "") for m in meshes]
 
     # Load partial pointclouds for each mesh at each angle.
-    partial_pointclouds = []
+    partial_pointclouds = dict()
     with tqdm(total=len(meshes) * N_angles) as pbar:
         for partial_mesh_name in meshes:
+            mesh_partial_pointclouds = dict()
             for angle_idx in range(N_angles):
                 # Load the partial view information for the given angle.
                 partial_angle_dir = os.path.join(partials_dir, partial_mesh_name, "angle_%d" % angle_idx)
@@ -41,15 +43,25 @@ def generate_plausible_basic(dataset_cfg: dict, split: str, vis: bool = True):
                 # Downsample partial surface pointcloud.
                 # np.random.shuffle(pointcloud)
                 # pointcloud = torch.from_numpy(pointcloud[:surface_N]).to(d).float()
-                partial_pointclouds.append(pointcloud)
+
+                mesh_partial_pointclouds[angle] = torch.from_numpy(pointcloud).to(d).float()
 
                 pbar.update(1)
-    partial_pointclouds = torch.stack(partial_pointclouds)
+            partial_pointclouds[partial_mesh_name] = mesh_partial_pointclouds
 
     # Evaluate distances between partial pointclouds.
-    # for source_idx in range(len(meshes)):
-    #     for match_idx in range(len(meshes)):
+    with tqdm(total=len(meshes) * N_angles * len(meshes) * N_angles) as pbar:
+        for partial_mesh_name in meshes:
+            mesh_partial_pointclouds = partial_pointclouds[partial_mesh_name]
 
+            for angle, partial_pc in mesh_partial_pointclouds.items():
+
+                # Compare to every other partial pointcloud.
+                for match_mesh_name in meshes:
+                    match_partial_pointclouds = partial_pointclouds[match_mesh_name]
+
+                    for match_angle, match_partial_pc in match_partial_pointclouds.items():
+                        pass
 
 
 if __name__ == '__main__':
