@@ -4,3 +4,6 @@
 [submodule "3rd/pytorch-meta"]
 	path = 3rd/pytorch-meta
 	url = git@github.com:tristandeleu/pytorch-meta.git
+[submodule "3rd/pointnet.pytorch"]
+	path = 3rd/pointnet.pytorch
+	url = git@github.com:mvandermerwe/pointnet.pytorch.git

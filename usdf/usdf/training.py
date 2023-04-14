@@ -81,20 +81,25 @@ class Trainer(BaseTrainer):
                 torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
 
     def compute_train_loss(self, data, it):
+        partial_pc = torch.from_numpy(data["partial_pointcloud"]).to(self.device).float().unsqueeze(0)
         example_idx = torch.from_numpy(data["example_idx"]).to(self.device)
         query_points = torch.from_numpy(data["query_points"]).to(self.device).float().unsqueeze(0)
         sdf_labels = torch.from_numpy(data["sdf"]).to(self.device).float().unsqueeze(0)
 
         # Run model forward.
-        z_object = self.model.encode_example(example_idx)
+        z_object = self.model.encode_example(example_idx, partial_pc)
         out_dict = self.model(query_points, z_object)
 
         # Compute loss.
         loss_dict = dict()
 
         # SDF loss.
-        mean = out_dict["sdf_means"].flatten().repeat_interleave(sdf_labels.shape[-1])
-        var = out_dict["sdf_var"].flatten().repeat_interleave(sdf_labels.shape[-1])
+        if len(sdf_labels.shape) == 3:
+            mean = out_dict["sdf_means"].flatten().repeat_interleave(sdf_labels.shape[-1])
+            var = out_dict["sdf_var"].flatten().repeat_interleave(sdf_labels.shape[-1])
+        else:
+            mean = out_dict["sdf_means"].flatten()
+            var = out_dict["sdf_var"].flatten()
         sdf_loss = F.gaussian_nll_loss(mean, sdf_labels.flatten(), var)
         loss_dict["sdf_loss"] = sdf_loss
 

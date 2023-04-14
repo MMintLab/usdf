@@ -1,37 +1,40 @@
 import torch
 import torch.nn as nn
-from usdf.models import meta_modules, mlp
+from usdf.models import meta_modules, mlp, point_net
 from usdf.loss import hypo_weight_loss
+from usdf.models.deepsdf import DeepSDFObjectModule
 
 
 class USDF(nn.Module):
 
-    def __init__(self, num_examples: int, z_object_size: int, device=None):
+    def __init__(self, num_examples: int, z_object_size: int, use_encoder: bool, device=None):
         super().__init__()
         self.z_object_size = z_object_size
         self.device = device
+        self.use_encoder = use_encoder
 
-        # Setup the object module.
-        # self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=2,
-        #                                                 hyper_in_features=self.z_object_size, hl=2).to(self.device)
-        self.object_model = mlp.MLP(3 + z_object_size, 2, hidden_sizes=[8, 8]).to(self.device)
+        # Setup the DeepSDF module.
+        # Note: Might need to make this more complex.
+        self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size, out_dim=2,
+                                                final_activation="none").to(self.device)
 
-        # Setup latent embeddings (used during training).
-        self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(True).to(
-            self.device)
-        nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
+        if self.use_encoder:
+            self.object_encoder = point_net.PointNet(self.z_object_size, "max").to(self.device)
+        else:
+            # Setup latent embeddings (used during training).
+            self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(
+                True).to(
+                self.device)
+            nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
 
-    def encode_example(self, example_idx: torch.Tensor):
-        return self.object_code(example_idx)
+    def encode_example(self, example_idx: torch.Tensor, partial_pc: torch.Tensor):
+        if self.use_encoder:
+            return self.object_encoder(partial_pc)
+        else:
+            return self.object_code(example_idx)
 
     def forward(self, query_points: torch.Tensor, z_object: torch.Tensor):
-        # model_in = {
-        #     "coords": query_points,
-        #     "embedding": z_object,
-        # }
-        z_object_ = z_object.unsqueeze(1).repeat(1, query_points.shape[1], 1)
-        model_in = torch.cat([query_points, z_object_], dim=-1)
-        model_out = self.object_model(model_in)
+        model_out = self.object_model(query_points, z_object)
 
         sdf_means = model_out[..., 0]
         sdf_var = torch.exp(model_out[..., 1])  # Ensure positive.

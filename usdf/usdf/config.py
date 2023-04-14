@@ -6,7 +6,7 @@ from usdf.usdf.generation import Generator
 def get_model(cfg, dataset, device=None):
     num_examples = len(dataset)
 
-    model = USDF(num_examples, cfg["model"]["z_object_size"], device).to(device)
+    model = USDF(num_examples, cfg["model"]["z_object_size"], cfg["model"]["use_encoder"], device).to(device)
     return model
 
 
