@@ -4,6 +4,7 @@ import mmint_utils
 import numpy as np
 import torch
 from torch import optim
+import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
 from usdf.data.uncertainty_dataset import UncertaintyDataset
 from usdf.training import BaseTrainer
@@ -24,6 +25,7 @@ class Trainer(BaseTrainer):
         max_epochs = self.cfg['training']['epochs']
         epochs_per_save = self.cfg['training']['epochs_per_save']
         self.train_loss_weights = self.cfg['training']['loss_weights']  # TODO: Better way to set this?
+        batch_size = self.cfg['training']['batch_size']
 
         # Output + vis directory
         if not os.path.exists(out_dir):
@@ -39,6 +41,10 @@ class Trainer(BaseTrainer):
         # Load model + optimizer if a partially trained copy of it exists.
         epoch_it, it = self.load_partial_train_model(
             {"model": self.model, "optimizer": optimizer}, out_dir, "model.pt")
+
+        # Setup data loader.
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 
         # Training loop
         while True:
@@ -57,15 +63,9 @@ class Trainer(BaseTrainer):
 
             loss = None
 
-            example_idcs = np.arange(len(train_dataset))
-            np.random.shuffle(example_idcs)
-            example_idcs = torch.from_numpy(example_idcs).to(self.device)
-
-            for example_idx in example_idcs:
+            for batch in train_loader:
                 it += 1
 
-                # For this training, we use just a single example per run.
-                batch = train_dataset[example_idx]
                 loss = self.train_step(batch, it, optimizer, logger, self.compute_train_loss)
 
             print('[Epoch %02d] it=%03d, loss=%.4f'
@@ -81,10 +81,10 @@ class Trainer(BaseTrainer):
                 torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
 
     def compute_train_loss(self, data, it):
-        partial_pc = torch.from_numpy(data["partial_pointcloud"]).to(self.device).float().unsqueeze(0)
+        partial_pc = torch.from_numpy(data["partial_pointcloud"]).to(self.device).float()
         example_idx = torch.from_numpy(data["example_idx"]).to(self.device)
-        query_points = torch.from_numpy(data["query_points"]).to(self.device).float().unsqueeze(0)
-        sdf_labels = torch.from_numpy(data["sdf"]).to(self.device).float().unsqueeze(0)
+        query_points = torch.from_numpy(data["query_points"]).to(self.device).float()
+        sdf_labels = torch.from_numpy(data["sdf"]).to(self.device).float()
 
         # Run model forward.
         z_object = self.model.encode_example(example_idx, partial_pc)

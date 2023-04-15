@@ -13,6 +13,7 @@ training:
   epochs: 11000
   epochs_per_save: 100
   epochs_per_validation: 100
+  batch_size: 8
   loss_weights:
     sdf_loss: 1.0
     embedding_loss: 100.0
