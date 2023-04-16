@@ -19,7 +19,7 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test"):
     pred_meshes = load_pred_results(gen_dir, num_examples)
 
     for idx in range(len(dataset)):
-        data_dict = dataset[idx]
+        # data_dict = dataset[idx]
 
         plt = Plotter(shape=(1, 2))
         plt.at(0).show(Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]), "Ground Truth")
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize generated results.")
     parser.add_argument("dataset_cfg", type=str, help="Path to dataset config file.")
     parser.add_argument("gen_dir", type=str, help="Path to directory containing generated results.")
-    parser.add_argument("--mode", type=str, default="test", help="Dataset mode to use.")
+    parser.add_argument("--mode", "-m", type=str, default="test", help="Dataset mode to use.")
     args = parser.parse_args()
 
     vis_results(args.dataset_cfg, args.gen_dir, args.mode)

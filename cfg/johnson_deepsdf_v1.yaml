@@ -5,6 +5,7 @@ data:
     meshes_dir: out/meshes/johnson/proc_v2/
     dataset_dir: out/datasets/johnson_deepsdf_v1/
     N_angles: 100
+    N_pc: 8741
     splits:
       train: train.txt
 training:

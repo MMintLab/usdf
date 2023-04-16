@@ -17,6 +17,9 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
     meshes_dir = dataset_cfg["meshes_dir"]
     dataset_dir = dataset_cfg["dataset_dir"]
     N_angles = dataset_cfg["N_angles"]  # Number of angles to generate SDF data from.
+    N_random = dataset_cfg["N_random"]  # Number of random points to sample around mesh.
+    N_off_surface = dataset_cfg["N_off_surface"]  # Number of points to sample off surface.
+    off_surface_sigma = dataset_cfg["off_surface_sigma"]  # Standard deviation of Gaussian to sample off surface points.
     sdfs_dir = os.path.join(dataset_dir, "sdfs")
     mmint_utils.make_dir(sdfs_dir)
 
@@ -48,7 +51,8 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
                 rot_mesh.apply_transform(object_pose)
 
                 # Sample the SDF points to evaluate.
-                query_points = get_sdf_query_points(rot_mesh, noise=0.01)
+                query_points = get_sdf_query_points(rot_mesh, n_random=N_random, n_off_surface=N_off_surface,
+                                                    noise=off_surface_sigma)
 
                 # Calculate the SDF values.
                 sdf_values = get_sdf_values(rot_mesh, query_points)
