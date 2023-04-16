@@ -15,7 +15,7 @@ import pytorch_volumetric as pv
 import pytorch_kinematics as pk
 
 
-# os.environ["PYOPENGL_PLATFORM"] = "egl"
+os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
 def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
