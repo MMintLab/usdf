@@ -7,7 +7,6 @@ import pyrender
 import torch
 import trimesh
 import transforms3d as tf3d
-from scripts.generate_sdf import get_sdf_values
 from tqdm import tqdm
 from usdf.utils import utils, vedo_utils
 from usdf.utils.render_utils import depth_to_pointcloud, depth_to_free_points

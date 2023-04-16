@@ -20,6 +20,7 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     - data_dict (dict): data dictionary for example(s) we are inferring for.
     - inf_params (dict): inference hyper-parameters.
     - device (torch.device): pytorch device.
+    - epsilon (float): convergence threshold.
     - verbose (bool): be verbose.
     """
     if inf_params is None:
@@ -29,8 +30,9 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     # Load inference hyper parameters.
     init_mean = inf_params.get("init_mean", 0.0)
     init_std = inf_params.get("init_std", 0.01)
-    lr = inf_params.get("lr", 2e-3)
-    num_steps = inf_params.get("num_steps", 1000)
+    lr = inf_params.get("lr", 3e-2)
+    num_steps = inf_params.get("iter_limit", 300)
+    epsilon = inf_params.get("conv_eps", 0.0)
 
     # Initialize latent code as noise.
     z_ = nn.Embedding(num_examples, latent_size, dtype=torch.float32).requires_grad_(True).to(device)
@@ -40,11 +42,12 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     # Start optimization procedure.
     z = z_.weight
 
+    iter_idx = 0
     if verbose:
         range_ = trange(num_steps)
     else:
         range_ = range(num_steps)
-    for _ in range_:
+    for iter_idx in range_:
         optimizer.zero_grad()
 
         loss = loss_fn(model, z, data_dict, device)
@@ -52,10 +55,14 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
         loss.backward()
         optimizer.step()
 
+        # Check for convergence.
+        if torch.allclose(z.grad, torch.zeros_like(z.grad), atol=epsilon):
+            break
+
         if verbose:
             range_.set_postfix(loss=loss.item())
     if verbose:
         range_.close()
 
     final_loss = loss_fn(model, z, data_dict, device)
-    return z_, final_loss
+    return z_, {"final_loss": final_loss, "iters": iter_idx + 1}
