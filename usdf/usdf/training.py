@@ -81,10 +81,10 @@ class Trainer(BaseTrainer):
                 torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
 
     def compute_train_loss(self, data, it):
-        partial_pc = torch.from_numpy(data["partial_pointcloud"]).to(self.device).float()
-        example_idx = torch.from_numpy(data["example_idx"]).to(self.device)
-        query_points = torch.from_numpy(data["query_points"]).to(self.device).float()
-        sdf_labels = torch.from_numpy(data["sdf"]).to(self.device).float()
+        partial_pc = data["partial_pointcloud"].to(self.device).float()
+        example_idx = data["example_idx"].to(self.device)
+        query_points = data["query_points"].to(self.device).float()
+        sdf_labels = data["sdf"].to(self.device).float()
 
         # Run model forward.
         z_object = self.model.encode_example(example_idx, partial_pc)

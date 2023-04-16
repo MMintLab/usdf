@@ -2,7 +2,6 @@ from collections import OrderedDict
 
 import torch
 import torch.nn.functional as F
-from chamferdist import ChamferDistance
 
 
 def sdf_loss(gt_sdf: torch.Tensor, pred_sdf: torch.Tensor, clip: float = 1.0):

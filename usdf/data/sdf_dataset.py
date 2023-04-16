@@ -6,7 +6,6 @@ import trimesh
 
 import mmint_utils
 from vedo import Plotter, Points, Mesh
-import transforms3d as tf3d
 
 from usdf.utils import vedo_utils, utils
 
@@ -19,6 +18,7 @@ class SDFDataset(torch.utils.data.Dataset):
         N_sdf = 10000 + 10000  # TODO: config
         self.meshes_dir = dataset_cfg["meshes_dir"]
         self.dataset_dir = dataset_cfg["dataset_dir"]
+        self.N_pc = dataset_cfg["N_pc"]
         partials_dir = os.path.join(self.dataset_dir, "partials")
         sdfs_dir = os.path.join(self.dataset_dir, "sdfs")
 
@@ -61,8 +61,18 @@ class SDFDataset(torch.utils.data.Dataset):
         return len(self.example_idcs)
 
     def __getitem__(self, index: int):
+        pc = self.partial_pointcloud[index]
+
+        assert pc.shape[0] <= self.N_pc
+        if pc.shape[0] < self.N_pc:
+            # Pad pointcloud by randomly sampling from the existing points.
+            pc = np.concatenate([pc, pc[np.random.choice(pc.shape[0], self.N_pc - pc.shape[0])]], axis=0)
+
+        # Shuffle pointcloud.
+        pc = pc[np.random.choice(pc.shape[0], pc.shape[0], replace=False)]
+
         data_dict = {
-            "partial_pointcloud": self.partial_pointcloud[index],
+            "partial_pointcloud": pc,
             "example_idx": np.array([self.example_idcs[index]]),
             "mesh_idx": np.array([self.mesh_idcs[index]]),
             "query_points": self.query_points[index],
