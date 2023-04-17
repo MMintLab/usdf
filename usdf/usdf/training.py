@@ -36,6 +36,7 @@ class Trainer(BaseTrainer):
         mmint_utils.dump_cfg(os.path.join(out_dir, 'config.yaml'), self.cfg)
 
         # Get optimizer (TODO: Parameterize?)
+        # TODO: If decoder-only, change lr for each component.
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
         # Load model + optimizer if a partially trained copy of it exists.
