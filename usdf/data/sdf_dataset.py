@@ -15,10 +15,10 @@ class SDFDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_cfg: dict, split: str, transform=None):
         super().__init__()
         self.N_angles = dataset_cfg["N_angles"]
-        N_sdf = 10000 + 10000  # TODO: config
         self.meshes_dir = dataset_cfg["meshes_dir"]
         self.dataset_dir = dataset_cfg["dataset_dir"]
         self.N_pc = dataset_cfg["N_pc"]
+        self.N_sdf = dataset_cfg["N_sdf"]
         partials_dir = os.path.join(self.dataset_dir, "partials")
         sdfs_dir = os.path.join(self.dataset_dir, "sdfs")
 
@@ -71,13 +71,21 @@ class SDFDataset(torch.utils.data.Dataset):
         # Shuffle pointcloud.
         pc = pc[np.random.choice(pc.shape[0], pc.shape[0], replace=False)]
 
+        # Balance number of positive and negative samples in query points.
+        query_points = self.query_points[index]
+        sdf = self.sdf[index]
+        pos_idx = np.random.choice(np.where(sdf > 0)[0], self.N_sdf // 2, replace=True)
+        neg_idx = np.random.choice(np.where(sdf <= 0)[0], self.N_sdf // 2, replace=True)
+        query_points = query_points[np.concatenate([pos_idx, neg_idx])]
+        sdf = sdf[np.concatenate([pos_idx, neg_idx])]
+
         data_dict = {
             "partial_pointcloud": pc,
             "example_idx": np.array([self.example_idcs[index]]),
             "mesh_idx": np.array([self.mesh_idcs[index]]),
-            "query_points": self.query_points[index],
             "object_pose": self.object_pose[index],
-            "sdf": self.sdf[index],
+            "query_points": query_points,
+            "sdf": sdf,
         }
         return data_dict
 

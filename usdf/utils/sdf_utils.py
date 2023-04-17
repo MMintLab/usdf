@@ -27,15 +27,17 @@ def sample_points_from_ball(n_points, ball_radius=1.1):
 
 
 def get_sdf_query_points(mesh: trimesh.Trimesh, n_random: int = 10000, n_off_surface: int = 10000,
-                         noise: float = 0.004):
+                         off_surface_sigma_a: float = 0.004, off_surface_sigma_b: float = 0.001):
     if n_random > 0:
         query_points_random = sample_points_from_ball(n_random)
     else:
         query_points_random = np.empty([0, 3], dtype=float)
 
     if n_off_surface > 0:
-        query_points_surface = mesh.sample(n_off_surface)
-        query_points_surface += np.random.normal(0.0, noise, size=query_points_surface.shape)
+        surface_points = mesh.sample(n_off_surface)
+        query_points_surface_a = surface_points + np.random.normal(0.0, off_surface_sigma_a, size=surface_points.shape)
+        query_points_surface_b = surface_points + np.random.normal(0.0, off_surface_sigma_b, size=surface_points.shape)
+        query_points_surface = np.concatenate([query_points_surface_a, query_points_surface_b], axis=0)
     else:
         query_points_surface = np.empty([0, 3], dtype=float)
 

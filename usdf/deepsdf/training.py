@@ -19,10 +19,13 @@ class Trainer(BaseTrainer):
     def train(self, train_dataset: torch.utils.data.Dataset, validation_dataset: torch.utils.data.Dataset):
         # Shorthands:
         out_dir = self.cfg['training']['out_dir']
-        lr = self.cfg['training']['learning_rate']
+        batch_size = self.cfg['training']['batch_size']
+        decoder_lr = float(self.cfg['training']['learning_rate']["decoder"]) * batch_size
+        latent_lr = float(self.cfg['training']['learning_rate']["latent"])
         max_epochs = self.cfg['training']['epochs']
         epochs_per_save = self.cfg['training']['epochs_per_save']
         self.train_loss_weights = self.cfg['training']['loss_weights']  # TODO: Better way to set this?
+        self.sdf_clip = self.cfg['training']['sdf_clip']
 
         # Output + vis directory
         if not os.path.exists(out_dir):
@@ -33,12 +36,18 @@ class Trainer(BaseTrainer):
         mmint_utils.dump_cfg(os.path.join(out_dir, 'config.yaml'), self.cfg)
 
         # Get optimizer (TODO: Parameterize?)
-        # TODO: Different learn rates for model vs. embedding?
-        optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        optimizer = optim.Adam([
+            {'params': self.model.object_model.parameters(), 'lr': decoder_lr},
+            {'params': self.model.object_code.parameters(), 'lr': latent_lr}
+        ])
 
         # Load model + optimizer if a partially trained copy of it exists.
         epoch_it, it = self.load_partial_train_model(
             {"model": self.model, "optimizer": optimizer}, out_dir, "model.pt")
+
+        # Setup data loader.
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
 
         # Training loop
         while True:
@@ -57,15 +66,9 @@ class Trainer(BaseTrainer):
 
             loss = None
 
-            example_idcs = np.arange(len(train_dataset))
-            np.random.shuffle(example_idcs)
-            example_idcs = torch.from_numpy(example_idcs).to(self.device)
-
-            for example_idx in example_idcs:
+            for batch in train_loader:
                 it += 1
 
-                # For this training, we use just a single example per run.
-                batch = train_dataset[example_idx]
                 loss = self.train_step(batch, it, optimizer, logger, self.compute_train_loss)
 
             print('[Epoch %02d] it=%03d, loss=%.4f'
@@ -81,9 +84,9 @@ class Trainer(BaseTrainer):
                 torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
 
     def compute_train_loss(self, data, it):
-        example_idx = torch.from_numpy(data["example_idx"]).to(self.device)
-        query_points = torch.from_numpy(data["query_points"]).to(self.device).float().unsqueeze(0)
-        sdf_labels = torch.from_numpy(data["sdf"]).to(self.device).float().unsqueeze(0)
+        example_idx = data["example_idx"].to(self.device)
+        query_points = data["query_points"].to(self.device).float()
+        sdf_labels = data["sdf"].to(self.device).float()
 
         # Run model forward.
         z_object = self.model.encode_example(example_idx)
@@ -94,7 +97,7 @@ class Trainer(BaseTrainer):
 
         # SDF loss.
         pred_sdf = out_dict["sdf"]
-        sdf_loss = usdf_losses.sdf_loss(sdf_labels, pred_sdf, clip=0.1)
+        sdf_loss = usdf_losses.sdf_loss(sdf_labels, pred_sdf, clip=self.sdf_clip)
         loss_dict["sdf_loss"] = sdf_loss
 
         # Latent embedding loss: well-formed embedding.

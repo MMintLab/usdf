@@ -14,7 +14,6 @@ from vedo import Plotter, Points, Mesh
 import pytorch_volumetric as pv
 import pytorch_kinematics as pk
 
-
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 
@@ -79,16 +78,16 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                 pointcloud = utils.transform_pointcloud(pointcloud, camera_pose)
 
                 # Recover free points.
-                free_pointcloud_camera = depth_to_free_points(depth, yfov, max_depth=3.0, n=200)[:, :3]
-                free_pointcloud_world = camera_to_world_tf.transform_points(
-                    torch.tensor(free_pointcloud_camera, dtype=dtype))
+                # free_pointcloud_camera = depth_to_free_points(depth, yfov, max_depth=3.0, n=200)[:, :3]
+                # free_pointcloud_world = camera_to_world_tf.transform_points(
+                #     torch.tensor(free_pointcloud_camera, dtype=dtype))
 
                 world_to_object_tf = object_to_world_tf.inverse()
-                free_pointcloud_obj = world_to_object_tf.transform_points(free_pointcloud_world).cpu().numpy()
-                sdn = obj.object_frame_closest_point(free_pointcloud_obj).distance
+                # free_pointcloud_obj = world_to_object_tf.transform_points(free_pointcloud_world).cpu().numpy()
+                # sdn = obj.object_frame_closest_point(free_pointcloud_obj).distance
 
-                free_pointcloud_world = free_pointcloud_world[sdn > free_space_surface_epsilon]
-                free_pointcloud_world = free_pointcloud_world.cpu().numpy()
+                # free_pointcloud_world = free_pointcloud_world[sdn > free_space_surface_epsilon]
+                # free_pointcloud_world = free_pointcloud_world.cpu().numpy()
 
                 if vis:
                     mesh_tri_rot = mesh_tri.copy().apply_transform(object_to_world_tf.get_matrix().cpu().numpy()[0])
@@ -105,8 +104,8 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                 mesh_partials_angle_path = os.path.join(mesh_partials_path, "angle_%d" % angle_idx)
                 mmint_utils.make_dir(mesh_partials_angle_path)
                 utils.save_pointcloud(pointcloud, os.path.join(mesh_partials_angle_path, "pointcloud.ply"))
-                utils.save_pointcloud(free_pointcloud_world,
-                                      os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
+                # utils.save_pointcloud(free_pointcloud_world,
+                #                       os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
                 mmint_utils.save_gzip_pickle({"angle": angle}, os.path.join(mesh_partials_angle_path, "info.pkl.gzip"))
 
                 pbar.update(1)
