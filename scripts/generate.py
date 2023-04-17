@@ -27,6 +27,7 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
     # Determine what to generate.
     generate_mesh = generator.generates_mesh
     generate_pointcloud = generator.generates_pointcloud
+    generate_slice = generator.generates_slice
 
     # Create output directory.
     if out_dir is not None:
@@ -39,7 +40,7 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
     for idx in trange(len(dataset)):
         data_dict = dataset[idx]
         metadata = {}
-        mesh = pointcloud = None
+        mesh = pointcloud = slice_ = None
 
         if generate_mesh:
             mesh, metadata_mesh = generator.generate_mesh(data_dict, metadata)
@@ -49,7 +50,11 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
             pointcloud, metadata_pc = generator.generate_pointcloud(data_dict, metadata)
             metadata = mmint_utils.combine_dict(metadata, metadata_pc)
 
-        write_results(out_dir, mesh, pointcloud, idx)
+        if generate_slice:
+            slice_, metadata_slice = generator.generate_slice(data_dict, metadata)
+            metadata = mmint_utils.combine_dict(metadata, metadata_slice)
+
+        write_results(out_dir, mesh, pointcloud, slice_, idx)
 
 
 if __name__ == '__main__':

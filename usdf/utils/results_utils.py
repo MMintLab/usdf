@@ -7,7 +7,7 @@ import mmint_utils
 from usdf.utils import utils
 
 
-def write_results(out_dir, mesh, pointcloud, idx):
+def write_results(out_dir, mesh, pointcloud, slice, idx):
     if mesh is not None:
         if type(mesh) == trimesh.Trimesh:
             mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -20,9 +20,14 @@ def write_results(out_dir, mesh, pointcloud, idx):
         pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
         utils.save_pointcloud(pointcloud, pc_fn)
 
+    if slice is not None:
+        slice_fn = os.path.join(out_dir, "slice_%d.pkl.gzip" % idx)
+        mmint_utils.save_gzip_pickle(slice, slice_fn)
+
 
 def load_pred_results(out_dir, n, device=None):
     meshes = []
+    slices = []
 
     for idx in range(n):
         mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -40,7 +45,13 @@ def load_pred_results(out_dir, n, device=None):
         # else:
         #     pointclouds.append(None)
 
-    return meshes
+        slice_fn = os.path.join(out_dir, "slice_%d.pkl.gzip" % idx)
+        if os.path.exists(slice_fn):
+            slices.append(mmint_utils.load_gzip_pickle(slice_fn))
+        else:
+            slices.append(None)
+
+    return meshes, slices
 
 
 def load_gt_results(dataset, dataset_cfg, n, device=None):

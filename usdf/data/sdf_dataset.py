@@ -63,21 +63,21 @@ class SDFDataset(torch.utils.data.Dataset):
     def __getitem__(self, index: int):
         pc = self.partial_pointcloud[index]
 
-        assert pc.shape[0] <= self.N_pc
-        if pc.shape[0] < self.N_pc:
-            # Pad pointcloud by randomly sampling from the existing points.
-            pc = np.concatenate([pc, pc[np.random.choice(pc.shape[0], self.N_pc - pc.shape[0])]], axis=0)
-
-        # Shuffle pointcloud.
-        pc = pc[np.random.choice(pc.shape[0], pc.shape[0], replace=False)]
+        # assert pc.shape[0] <= self.N_pc
+        # if pc.shape[0] < self.N_pc:
+        #     # Pad pointcloud by randomly sampling from the existing points.
+        #     pc = np.concatenate([pc, pc[np.random.choice(pc.shape[0], self.N_pc - pc.shape[0])]], axis=0)
+        #
+        # # Shuffle pointcloud.
+        # pc = pc[np.random.choice(pc.shape[0], pc.shape[0], replace=False)]
 
         # Balance number of positive and negative samples in query points.
         query_points = self.query_points[index]
         sdf = self.sdf[index]
-        pos_idx = np.random.choice(np.where(sdf > 0)[0], self.N_sdf // 2, replace=False)
-        neg_idx = np.random.choice(np.where(sdf <= 0)[0], self.N_sdf // 2, replace=False)
-        query_points = query_points[np.concatenate([pos_idx, neg_idx])]
-        sdf = sdf[np.concatenate([pos_idx, neg_idx])]
+        # pos_idx = np.random.choice(np.where(sdf > 0)[0], self.N_sdf // 2, replace=False)
+        # neg_idx = np.random.choice(np.where(sdf <= 0)[0], self.N_sdf // 2, replace=False)
+        # query_points = query_points[np.concatenate([pos_idx, neg_idx])]
+        # sdf = sdf[np.concatenate([pos_idx, neg_idx])]
 
         data_dict = {
             "partial_pointcloud": pc,

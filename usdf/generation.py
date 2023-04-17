@@ -18,9 +18,13 @@ class BaseGenerator(object):
 
         self.generates_mesh = False
         self.generates_pointcloud = False
+        self.generates_slice = False
 
     def generate_mesh(self, data, metadata):
         raise NotImplementedError()
 
     def generate_pointcloud(self, data, metadata):
+        raise NotImplementedError()
+
+    def generate_slice(self, data, metadata):
         raise NotImplementedError()
