@@ -19,7 +19,7 @@ class DeepSDF(nn.Module):
         # Setup latent embeddings (used during training).
         self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(True).to(
             self.device)
-        nn.init.normal_(self.object_code.weight, mean=0.0, std=0.01 ** 2)
+        nn.init.normal_(self.object_code.weight, mean=0.0, std=0.01)
 
     def encode_example(self, example_idx: torch.Tensor):
         return self.object_code(example_idx).reshape(-1, self.z_object_size)
