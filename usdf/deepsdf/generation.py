@@ -38,18 +38,22 @@ class Generator(BaseGenerator):
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         print(self.gen_from_known_latent)
 
+    def generate_latent(self, data):
+        if self.gen_from_known_latent:
+            latent = self.model.encode_example(torch.from_numpy(data["example_idx"]).to(self.device))
+        else:
+            z_object_, _ = inference_by_optimization(self.model, get_surface_loss_fn(100.0),
+                                                     self.model.z_object_size,
+                                                     1, data, device=self.device, verbose=True)
+            latent = z_object_.weight
+        return latent
+
     def generate_mesh(self, data, metadata):
         # Check if we have been provided with the latent already.
         if "latent" in metadata:
             latent = metadata["latent"]
         else:
-            if self.gen_from_known_latent:
-                latent = self.model.encode_example(torch.from_numpy(data["example_idx"]).to(self.device))
-            else:
-                z_object_, _ = inference_by_optimization(self.model, get_surface_loss_fn(100.0),
-                                                         self.model.z_object_size,
-                                                         1, data, device=self.device, verbose=True)
-                latent = z_object_.weight
+            latent = self.generate_latent(data)
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):

@@ -3,13 +3,18 @@ import os
 import torch
 import trimesh
 
+import mmint_utils
 from usdf.utils import utils
 
 
 def write_results(out_dir, mesh, pointcloud, idx):
     if mesh is not None:
-        mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
-        mesh.export(mesh_fn)
+        if type(mesh) == trimesh.Trimesh:
+            mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
+            mesh.export(mesh_fn)
+        elif type(mesh) == dict:
+            mesh_fn = os.path.join(out_dir, "mesh_%d.pkl.gzip" % idx)
+            mmint_utils.save_gzip_pickle(mesh, mesh_fn)
 
     if pointcloud is not None:
         pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
@@ -21,8 +26,11 @@ def load_pred_results(out_dir, n, device=None):
 
     for idx in range(n):
         mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
+        mesh_dict_fn = os.path.join(out_dir, "mesh_%d.pkl.gzip" % idx)
         if os.path.exists(mesh_fn):
             meshes.append(trimesh.load(mesh_fn))
+        elif os.path.exists(mesh_dict_fn):
+            meshes.append(mmint_utils.load_gzip_pickle(mesh_dict_fn))
         else:
             meshes.append(None)
 

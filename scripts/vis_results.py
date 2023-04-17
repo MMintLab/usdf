@@ -1,6 +1,8 @@
 import argparse
 
+import trimesh
 from vedo import Plotter, Mesh
+import matplotlib as mpl
 
 from usdf.utils.model_utils import load_dataset_from_config
 from usdf.utils.results_utils import load_gt_results, load_pred_results
@@ -23,7 +25,26 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test"):
 
         plt = Plotter(shape=(1, 2))
         plt.at(0).show(Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]), "Ground Truth")
-        plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]), "Predicted")
+
+        pred_mesh = pred_meshes[idx]
+        if type(pred_mesh) == trimesh.Trimesh:
+            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]), "Predicted")
+        elif type(pred_mesh) == dict:
+            vertex_uncertainty = pred_mesh["uncertainty"]
+
+            # Convert vertex uncertainty to color using jet colormap.
+            jet = mpl.colormaps.get_cmap('jet')
+            cNorm = mpl.colors.Normalize(vmin=vertex_uncertainty.min(), vmax=vertex_uncertainty.max())
+            scalarMap = mpl.cm.ScalarMappable(norm=cNorm, cmap=jet)
+            vertex_colors = (scalarMap.to_rgba(vertex_uncertainty) * 255).astype("uint8")
+
+            mesh = Mesh([pred_mesh["vertices"], pred_mesh["faces"]])
+            mesh.pointcolors = vertex_colors
+
+            plt.at(1).show(mesh, "Predicted")
+        else:
+            raise ValueError("Unknown mesh type.")
+
         plt.interactive().close()
 
 
