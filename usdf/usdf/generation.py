@@ -15,6 +15,7 @@ class Generator(BaseGenerator):
         # Does model have encoder?
         self.has_encoder = self.model.use_encoder
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
+        self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
 
         self.generates_mesh = True
         self.generates_slice = False
@@ -47,7 +48,7 @@ class Generator(BaseGenerator):
         def sdf_fn(query_points):
             return self.model.forward(query_points.unsqueeze(0), latent)["sdf_means"]
 
-        mesh = create_mesh(sdf_fn)
+        mesh = create_mesh(sdf_fn, n=self.mesh_resolution)
 
         # At each mesh point, calculate uncertainty.
         mesh_points = torch.from_numpy(mesh.vertices).to(self.device).float().unsqueeze(0)

@@ -70,4 +70,10 @@ if __name__ == '__main__':
     # random.seed(10)
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
-    generate(model_cfg_, model_, args.model_file, dataset_, device_, args.out, args.gen_args)
+
+    out = args.out
+    if out is None:
+        out = os.path.join(model_cfg_["training"]["out_dir"], "out", args.mode)
+        mmint_utils.make_dir(out)
+
+    generate(model_cfg_, model_, args.model_file, dataset_, device_, out, args.gen_args)

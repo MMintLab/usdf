@@ -17,7 +17,6 @@ class SDFDataset(torch.utils.data.Dataset):
         self.N_angles = dataset_cfg["N_angles"]
         self.meshes_dir = dataset_cfg["meshes_dir"]
         self.dataset_dir = dataset_cfg["dataset_dir"]
-        self.N_pc = dataset_cfg["N_pc"]
         self.N_sdf = dataset_cfg["N_sdf"]
         partials_dir = os.path.join(self.dataset_dir, "partials")
         sdfs_dir = os.path.join(self.dataset_dir, "sdfs")
@@ -62,14 +61,6 @@ class SDFDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int):
         pc = self.partial_pointcloud[index]
-
-        # assert pc.shape[0] <= self.N_pc
-        # if pc.shape[0] < self.N_pc:
-        #     # Pad pointcloud by randomly sampling from the existing points.
-        #     pc = np.concatenate([pc, pc[np.random.choice(pc.shape[0], self.N_pc - pc.shape[0])]], axis=0)
-        #
-        # # Shuffle pointcloud.
-        # pc = pc[np.random.choice(pc.shape[0], pc.shape[0], replace=False)]
 
         # Balance number of positive and negative samples in query points.
         query_points = self.query_points[index]

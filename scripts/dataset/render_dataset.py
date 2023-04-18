@@ -14,10 +14,11 @@ from vedo import Plotter, Points, Mesh
 import pytorch_volumetric as pv
 import pytorch_kinematics as pk
 
-os.environ["PYOPENGL_PLATFORM"] = "egl"
-
 
 def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
+    if not vis:
+        os.environ["PYOPENGL_PLATFORM"] = "egl"
+
     dtype = torch.float
     free_space_surface_epsilon = 0.01
 
@@ -82,7 +83,7 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                 # free_pointcloud_world = camera_to_world_tf.transform_points(
                 #     torch.tensor(free_pointcloud_camera, dtype=dtype))
 
-                world_to_object_tf = object_to_world_tf.inverse()
+                # world_to_object_tf = object_to_world_tf.inverse()
                 # free_pointcloud_obj = world_to_object_tf.transform_points(free_pointcloud_world).cpu().numpy()
                 # sdn = obj.object_frame_closest_point(free_pointcloud_obj).distance
 
