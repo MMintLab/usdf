@@ -17,7 +17,7 @@ def sample_points_from_ball(n_points, ball_radius=1.1):
 
     while len(points) < n_points:
         # Sample points in the unit cube.
-        new_points = np.random.uniform(-1, 1, size=(n_points, 3))
+        new_points = np.random.uniform(-ball_radius, ball_radius, size=(n_points, 3))
 
         # Reject points outside the unit ball.
         mask = np.linalg.norm(new_points, axis=1) <= ball_radius

@@ -4,7 +4,7 @@ import os
 import numpy as np
 import trimesh
 from tqdm import trange
-from vedo import Plotter, Mesh, Points
+from vedo import Plotter, Mesh, Points, color_map
 
 from usdf.utils import vedo_utils
 from usdf.utils.sdf_utils import get_sdf_query_points, get_sdf_values
@@ -63,10 +63,18 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
                 sdf_values = get_sdf_values(rot_mesh, query_points)
 
                 if vis:
-                    plt = Plotter((1, 2))
+                    plt = Plotter((1, 3))
                     plt.at(0).show(Mesh([rot_mesh.vertices, rot_mesh.faces], c="red"),
                                    vedo_utils.draw_origin(scale=0.1))
-                    plt.at(1).show(Points(query_points[sdf_values < 0.0]), vedo_utils.draw_origin(scale=0.1))
+
+                    # Downsample query points for visualization.
+                    idcs = np.random.choice(len(query_points), 10000, replace=False)
+                    vis_query_points = query_points[idcs]
+                    vis_sdf_values = sdf_values[idcs]
+                    qp_colors = [color_map(sdf_value, "jet", vmin=vis_sdf_values.min(), vmax=vis_sdf_values.max())
+                                 for sdf_value in vis_sdf_values]
+                    plt.at(1).show(Points(vis_query_points, c=qp_colors), vedo_utils.draw_origin(scale=0.1))
+                    plt.at(2).show(Points(query_points[sdf_values < 0.0]), vedo_utils.draw_origin(scale=0.1))
                     plt.interactive().close()
 
                 # Save result.

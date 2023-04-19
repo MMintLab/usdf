@@ -65,10 +65,10 @@ class SDFDataset(torch.utils.data.Dataset):
         # Balance number of positive and negative samples in query points.
         query_points = self.query_points[index]
         sdf = self.sdf[index]
-        # pos_idx = np.random.choice(np.where(sdf > 0)[0], self.N_sdf // 2, replace=False)
-        # neg_idx = np.random.choice(np.where(sdf <= 0)[0], self.N_sdf // 2, replace=False)
-        # query_points = query_points[np.concatenate([pos_idx, neg_idx])]
-        # sdf = sdf[np.concatenate([pos_idx, neg_idx])]
+        pos_idx = np.random.choice(np.where(sdf > 0)[0], self.N_sdf // 2, replace=False)
+        neg_idx = np.random.choice(np.where(sdf <= 0)[0], self.N_sdf // 2, replace=False)
+        query_points = query_points[np.concatenate([pos_idx, neg_idx])]
+        sdf = sdf[np.concatenate([pos_idx, neg_idx])]
 
         data_dict = {
             "partial_pointcloud": pc,
