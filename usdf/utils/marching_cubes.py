@@ -16,9 +16,9 @@ def create_mesh(decoder, n=256, max_batch=40 ** 3, offset=None, scale=None):
     # TODO: How best to determine these?
     # min_bounds = [-0.053, -0.053, 0.02]
     # max_bounds = [0.053, 0.053, 0.076]
-    min_bounds = [-1.0, -1.0, -1.0]
-    max_bounds = [1.0, 1.0, 1.0]
-    diff = 2.0
+    min_bounds = [-1.1, -1.1, -1.1]
+    max_bounds = [1.1, 1.1, 1.1]
+    diff = 2.2
 
     # NOTE: the voxel_origin is actually the (bottom, left, down) corner, not the middle
     voxel_origin = min_bounds
@@ -91,9 +91,12 @@ def convert_sdf_samples_to_mesh(
     numpy_3d_sdf_tensor = pytorch_3d_sdf_tensor.numpy()
 
     verts, faces, normals, values = np.zeros((0, 3)), np.zeros((0, 3)), np.zeros((0, 3)), np.zeros(0)
-    verts, faces, normals, values = skimage.measure.marching_cubes(
-        numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
-    )
+    try:
+        verts, faces, normals, values = skimage.measure.marching_cubes(
+            numpy_3d_sdf_tensor, level=0.0, spacing=[voxel_size] * 3
+        )
+    except ValueError as e:
+        print("Error in mesh marching cubes: %s" % str(e))
 
     # transform from voxel coordinates to camera coordinates
     # note x and y are flipped in the output of marching_cubes
