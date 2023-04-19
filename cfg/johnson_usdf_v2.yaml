@@ -16,7 +16,7 @@ data:
 training:
   out_dir: out/models/johnson_usdf_v5/
   learning_rate: 1.0e-3
-  epochs: 11000
+  epochs: 100000
   epochs_per_save: 100
   epochs_per_validation: 100
   batch_size: 8
