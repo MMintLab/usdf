@@ -8,6 +8,7 @@ data:
     N_random: 25000
     N_off_surface: 250000
     N_sdf: 80000
+    N_pc: 600
     off_surface_sigma_a: 0.05
     off_surface_sigma_b: 0.015811388300841896
     splits:
@@ -19,7 +20,7 @@ training:
     decoder: 1e-5
     latent: 1e-3
   sdf_clip: 0.1
-  epochs: 40000
+  epochs: 100000
   epochs_per_save: 100
   epochs_per_validation: 100
   loss_weights:
