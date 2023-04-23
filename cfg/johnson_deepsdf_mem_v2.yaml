@@ -3,29 +3,29 @@ data:
   train:
     dataset: SDFDataset
     meshes_dir: out/meshes/johnson/proc_v2/
-    dataset_dir: out/datasets/johnson_deepsdf_mem_v3/
-    N_angles: 2
-    N_random: 40000
-    N_off_surface: 40000
+    dataset_dir: out/datasets/johnson_deepsdf_mem_v2/
+    N_angles: 1
+    N_random: 25000
+    N_off_surface: 250000
     N_sdf: 80000
-    N_pc: 8000
+    N_pc: 600
     off_surface_sigma_a: 0.05
     off_surface_sigma_b: 0.015811388300841896
     splits:
       train: train.txt
 training:
-  out_dir: out/models/johnson_deepsdf_v9/
+  out_dir: out/models/johnson_deepsdf_mem_v2/
   batch_size: 1
   learning_rate:
     decoder: 1e-5
-    latent: 1e-3
-  sdf_clip: 0.1
-  epochs: 10000
+    latent: 0.0
+  sdf_clip: 1.5
+  epochs: 100000
   epochs_per_save: 100
   epochs_per_validation: 100
   loss_weights:
     sdf_loss: 1.0
-    embedding_loss: 100.0
+    embedding_loss: 0.0
     reg_loss: 0.0
 model:
   z_object_size: 16

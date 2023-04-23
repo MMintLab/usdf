@@ -78,7 +78,7 @@ class SDFDataset(torch.utils.data.Dataset):
 
         data_dict = {
             "partial_pointcloud": pc,
-            "example_idx": np.array([self.example_idcs[index]]),
+            "example_idx": self.example_idcs[index],
             "mesh_idx": np.array([self.mesh_idcs[index]]),
             "object_pose": self.object_pose[index],
             "query_points": query_points,

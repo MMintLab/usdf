@@ -40,7 +40,7 @@ class Generator(BaseGenerator):
 
     def generate_latent(self, data):
         if self.gen_from_known_latent:
-            latent = self.model.encode_example(torch.from_numpy(data["example_idx"]).to(self.device))
+            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device))
         else:
             z_object_, _ = inference_by_optimization(self.model, get_surface_loss_fn(100.0),
                                                      self.model.z_object_size,

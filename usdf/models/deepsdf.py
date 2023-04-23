@@ -6,7 +6,7 @@ from usdf.models import mlp
 
 class DeepSDFObjectModule(nn.Module):
 
-    def __init__(self, z_object_size: int, hidden_size: int = 512, out_dim: int = 1, final_activation: str = "tanh"):
+    def __init__(self, z_object_size: int, hidden_size: int = 512, out_dim: int = 1, final_activation: str = "none"):
         super().__init__()
         self.z_object_size = z_object_size
         self.final_activation = final_activation

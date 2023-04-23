@@ -26,10 +26,11 @@ def make_slices_images(dataset_cfg: str, gen_dir: str, mode: str = "test", vis: 
         mean_image = pred_slice["mean"]
         uncertainty_image = pred_slice["uncertainty"]
 
-        # fig, (ax1, ax2) = plt.subplots(1, 2)
-        # ax1.imshow(mean_image)
-        # ax2.imshow(uncertainty_image)
-        # plt.show()
+        if vis:
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.imshow(mean_image)
+            ax2.imshow(uncertainty_image)
+            plt.show()
 
         jet = mpl.colormaps.get_cmap('jet')
         cNorm = mpl.colors.Normalize(vmin=uncertainty_image.min(), vmax=uncertainty_image.max())
@@ -43,11 +44,11 @@ def make_slices_images(dataset_cfg: str, gen_dir: str, mode: str = "test", vis: 
         mean_color_image = (scalarMap.to_rgba(mean_image.flatten()) * 255) \
             .astype("uint8").reshape(100, 100, -1)
 
-        if vis:
-            fig, (ax1, ax2) = plt.subplots(1, 2)
-            ax1.imshow(mean_color_image)
-            ax2.imshow(uncertainty_color_image)
-            plt.show()
+        # if vis:
+        #     fig, (ax1, ax2) = plt.subplots(1, 2)
+        #     ax1.imshow(mean_color_image)
+        #     ax2.imshow(uncertainty_color_image)
+        #     plt.show()
 
         cv2.imwrite(os.path.join(gen_dir, "slice_mean_%d.png" % idx), cv2.cvtColor(mean_color_image, cv2.COLOR_RGB2BGR))
         cv2.imwrite(os.path.join(gen_dir, "slice_uncertainty_%d.png" % idx),
