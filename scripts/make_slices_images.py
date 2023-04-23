@@ -20,7 +20,7 @@ def make_slices_images(dataset_cfg: str, gen_dir: str, mode: str = "test", vis: 
     gt_meshes = load_gt_results(dataset, dataset_cfg, num_examples)
 
     # Load predicted information.
-    pred_meshes, pred_slices = load_pred_results(gen_dir, num_examples)
+    pred_meshes, pred_slices, metadata = load_pred_results(gen_dir, num_examples)
 
     for idx, pred_slice in enumerate(pred_slices):
         mean_image = pred_slice["mean"]

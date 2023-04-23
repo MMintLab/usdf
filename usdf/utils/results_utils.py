@@ -7,7 +7,7 @@ import mmint_utils
 from usdf.utils import utils
 
 
-def write_results(out_dir, mesh, pointcloud, slice, idx):
+def write_results(out_dir, mesh, pointcloud, slice_, metadata, idx):
     if mesh is not None:
         if type(mesh) == trimesh.Trimesh:
             mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -20,14 +20,19 @@ def write_results(out_dir, mesh, pointcloud, slice, idx):
         pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
         utils.save_pointcloud(pointcloud, pc_fn)
 
-    if slice is not None:
+    if slice_ is not None:
         slice_fn = os.path.join(out_dir, "slice_%d.pkl.gzip" % idx)
-        mmint_utils.save_gzip_pickle(slice, slice_fn)
+        mmint_utils.save_gzip_pickle(slice_, slice_fn)
+
+    if metadata is not None:
+        metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
+        mmint_utils.save_gzip_pickle(metadata, metadata_fn)
 
 
 def load_pred_results(out_dir, n, device=None):
     meshes = []
     slices = []
+    metadatas = []
 
     for idx in range(n):
         mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -51,7 +56,14 @@ def load_pred_results(out_dir, n, device=None):
         else:
             slices.append(None)
 
-    return meshes, slices
+        metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
+        if os.path.exists(metadata_fn):
+            metadata = mmint_utils.load_gzip_pickle(metadata_fn)
+        else:
+            metadata = None
+        metadatas.append(metadata)
+
+    return meshes, slices, metadatas
 
 
 def load_gt_results(dataset, dataset_cfg, n, device=None):

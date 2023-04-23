@@ -1,14 +1,11 @@
 import os.path
 
 import mmint_utils
-import numpy as np
-import torch
 import yaml
 from usdf import config
 from usdf.utils.args_utils import get_model_dataset_arg_parser, load_model_dataset_from_args
 from usdf.utils.model_utils import load_generation_cfg
 from tqdm import trange
-import random
 
 from usdf.utils.results_utils import write_results
 
@@ -54,7 +51,7 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
             slice_, metadata_slice = generator.generate_slice(data_dict, metadata)
             metadata = mmint_utils.combine_dict(metadata, metadata_slice)
 
-        write_results(out_dir, mesh, pointcloud, slice_, idx)
+        write_results(out_dir, mesh, pointcloud, slice_, metadata, idx)
 
 
 if __name__ == '__main__':
