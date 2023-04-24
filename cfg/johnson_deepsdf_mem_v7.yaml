@@ -3,7 +3,7 @@ data:
   train:
     dataset: SDFDataset
     meshes_dir: out/meshes/johnson/proc_v2/
-    dataset_dir: out/datasets/johnson_deepsdf_mem_v3/
+    dataset_dir: out/datasets/johnson_deepsdf_mem_v7/
     N_angles: 32
     N_random: 25000
     N_off_surface: 250000
