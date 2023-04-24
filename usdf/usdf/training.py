@@ -10,6 +10,7 @@ from usdf.data.uncertainty_dataset import UncertaintyDataset
 from usdf.training import BaseTrainer
 import usdf.loss as usdf_losses
 import torch.nn.functional as F
+import shutil
 
 
 class Trainer(BaseTrainer):
@@ -53,6 +54,8 @@ class Trainer(BaseTrainer):
 
             if epoch_it > max_epochs:
                 print("Backing up and stopping training. Reached max epochs.")
+                shutil.copyfile(os.path.join(out_dir, 'model.pt'), os.path.join(out_dir, 'model_backup.pt'))
+
                 save_dict = {
                     'model': self.model.state_dict(),
                     'optimizer': optimizer.state_dict(),
@@ -73,6 +76,10 @@ class Trainer(BaseTrainer):
                   % (epoch_it, it, loss))
 
             if epoch_it % epochs_per_save == 0:
+                # Backup previous checkpoint.
+                if os.path.exists(os.path.join(out_dir, 'model.pt')):
+                    shutil.copyfile(os.path.join(out_dir, 'model.pt'), os.path.join(out_dir, 'model_backup.pt'))
+
                 save_dict = {
                     'model': self.model.state_dict(),
                     'optimizer': optimizer.state_dict(),
@@ -89,6 +96,11 @@ class Trainer(BaseTrainer):
 
         # Run model forward.
         z_object = self.model.encode_example(example_idx, partial_pc)
+
+        if torch.isinf(z_object).any() or torch.isnan(z_object).any():
+            print("NaN or inf in latent embedding. Exiting..")
+            exit()
+
         out_dict = self.model(query_points, z_object)
 
         # Compute loss.

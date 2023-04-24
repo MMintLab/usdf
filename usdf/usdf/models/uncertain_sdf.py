@@ -14,9 +14,11 @@ class USDF(nn.Module):
         self.use_encoder = use_encoder
 
         # Setup the DeepSDF module.
-        # Note: Might need to make this more complex.
-        self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size, out_dim=2,
-                                                final_activation="none").to(self.device)
+        # self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size, out_dim=2,
+        #                                         final_activation="none").to(self.device)
+
+        self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=2,
+                                                        hyper_in_features=self.z_object_size, hl=4).to(self.device)
 
         if self.use_encoder:
             self.object_encoder = point_net.PointNet(self.z_object_size, "max").to(self.device)
@@ -34,22 +36,27 @@ class USDF(nn.Module):
             return self.object_code(example_idx)
 
     def forward(self, query_points: torch.Tensor, z_object: torch.Tensor):
-        model_out = self.object_model(query_points, z_object)
+        # model_out = self.object_model(query_points, z_object)
 
-        sdf_means = model_out[..., 0]
-        sdf_var = torch.exp(model_out[..., 1])  # Ensure positive.
+        model_in = {
+            "coords": query_points,
+            "embedding": z_object,
+        }
+        model_out = self.object_model(model_in)
+
+        sdf_means = model_out["model_out"][..., 0]
+        sdf_var = torch.exp(model_out["model_out"][..., 1])  # Ensure positive.
 
         out_dict = {
             "query_points": query_points,
             "sdf_means": sdf_means,
             "sdf_var": sdf_var,
-            # "hypo_params": model_out["hypo_params"],
+            "hypo_params": model_out["hypo_params"],
             "embedding": z_object,
         }
         return out_dict
 
     def regularization_loss(self, out_dict: dict):
-        # hypo_params = out_dict["hypo_params"]
-        # hypo_loss = hypo_weight_loss(hypo_params)
-        # return hypo_loss
-        return 0.0
+        hypo_params = out_dict["hypo_params"]
+        hypo_loss = hypo_weight_loss(hypo_params)
+        return hypo_loss

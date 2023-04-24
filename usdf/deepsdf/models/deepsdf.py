@@ -14,7 +14,6 @@ class DeepSDF(nn.Module):
         self.device = device
 
         # Setup the DeepSDF module.
-        # Note: Might need to make this more complex.
         # self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size).to(self.device)
         # self.object_model = mlp.MLP(input_size=self.z_object_size + 3, output_size=1,
         #                             hidden_sizes=[128, 128, 128]).to(self.device)
