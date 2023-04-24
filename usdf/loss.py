@@ -44,7 +44,7 @@ def surface_normal_loss(gt_sdf: torch.Tensor, gt_normals: torch.Tensor, pred_nor
     return norm_loss
 
 
-def l2_loss(tens: torch.Tensor, squared: bool = False):
+def l2_loss(tens: torch.Tensor, squared: bool = False, reduce=True):
     """
     L2 loss on provided tensor.
 
@@ -53,6 +53,9 @@ def l2_loss(tens: torch.Tensor, squared: bool = False):
     - squared (bool): whether to derive squared l2 loss.
     """
     l2_squared = torch.sum(tens ** 2.0, dim=-1)
+
+    if not reduce:
+        return l2_squared
 
     if squared:
         return torch.mean(l2_squared)

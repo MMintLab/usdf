@@ -1,14 +1,15 @@
 import argparse
 
 import trimesh
-from vedo import Plotter, Mesh
+from tqdm import trange
+from vedo import Plotter, Mesh, Points
 import matplotlib as mpl
 
 from usdf.utils.model_utils import load_dataset_from_config
 from usdf.utils.results_utils import load_gt_results, load_pred_results
 
 
-def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test"):
+def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int = 0):
     # Load dataset.
     dataset_cfg, dataset = load_dataset_from_config(dataset_cfg, dataset_mode=mode)
     num_examples = len(dataset)
@@ -20,11 +21,17 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test"):
     # Load predicted information.
     pred_meshes, pred_slices, _ = load_pred_results(gen_dir, num_examples)
 
-    for idx in range(len(dataset)):
-        # data_dict = dataset[idx]
+    for idx in trange(offset, len(dataset)):
+        data_dict = dataset[idx]
+
+        pc = data_dict["partial_pointcloud"]
 
         plt = Plotter(shape=(1, 2))
-        plt.at(0).show(Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]), "Ground Truth")
+        plt.at(0).show(
+            Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]),
+            Points(pc, c="b"),
+            "Ground Truth"
+        )
 
         pred_mesh = pred_meshes[idx]
         if type(pred_mesh) == trimesh.Trimesh:
@@ -53,6 +60,7 @@ if __name__ == "__main__":
     parser.add_argument("dataset_cfg", type=str, help="Path to dataset config file.")
     parser.add_argument("gen_dir", type=str, help="Path to directory containing generated results.")
     parser.add_argument("--mode", "-m", type=str, default="test", help="Dataset mode to use.")
+    parser.add_argument("--offset", "-o", type=int, default=0, help="Offset to use for visualization.")
     args = parser.parse_args()
 
-    vis_results(args.dataset_cfg, args.gen_dir, args.mode)
+    vis_results(args.dataset_cfg, args.gen_dir, args.mode, args.offset)

@@ -66,8 +66,8 @@ class Generator(BaseGenerator):
             latent = self.generate_latent(data)
 
         # Generate query points as xy slice through z=0.
-        x = torch.linspace(-1.3, 1.3, 100)
-        y = torch.linspace(-1.3, 1.3, 100)
+        x = torch.linspace(-1.2, 1.2, 100)
+        y = torch.linspace(-1.2, 1.2, 100)
         xv, yv = torch.meshgrid(x, y)
         query_points = torch.stack([xv, yv, torch.zeros_like(xv)], dim=-1).view(-1, 3).to(self.device)
 

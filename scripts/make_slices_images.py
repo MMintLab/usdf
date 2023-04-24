@@ -33,7 +33,7 @@ def make_slices_images(dataset_cfg: str, gen_dir: str, mode: str = "test", vis: 
             plt.show()
 
         jet = mpl.colormaps.get_cmap('jet')
-        cNorm = mpl.colors.Normalize(vmin=uncertainty_image.min(), vmax=uncertainty_image.max())
+        cNorm = mpl.colors.Normalize(vmin=uncertainty_image.min(), vmax=0.2)  # uncertainty_image.max())
         scalarMap = mpl.cm.ScalarMappable(norm=cNorm, cmap=jet)
         uncertainty_color_image = (scalarMap.to_rgba(uncertainty_image.flatten()) * 255) \
             .astype("uint8").reshape(100, 100, -1)
