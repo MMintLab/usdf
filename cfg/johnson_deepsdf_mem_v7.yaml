@@ -8,14 +8,14 @@ data:
     N_random: 25000
     N_off_surface: 250000
     N_sdf: 120000
-    N_pc: 600
+    N_pc: 9000
     off_surface_sigma_a: 0.05
     off_surface_sigma_b: 0.015811388300841896
     splits:
       train: train.txt
 training:
   out_dir: out/models/johnson_deepsdf_mem_v7/
-  batch_size: 2
+  batch_size: 4
   learning_rate:
     decoder: 1e-5
     latent: 1e-3
