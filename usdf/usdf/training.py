@@ -27,6 +27,7 @@ class Trainer(BaseTrainer):
         epochs_per_save = self.cfg['training']['epochs_per_save']
         self.train_loss_weights = self.cfg['training']['loss_weights']  # TODO: Better way to set this?
         batch_size = self.cfg['training']['batch_size']
+        grad_clip = self.cfg['training'].get('grad_clip', None)
 
         # Output + vis directory
         if not os.path.exists(out_dir):
@@ -39,6 +40,11 @@ class Trainer(BaseTrainer):
         # Get optimizer (TODO: Parameterize?)
         # TODO: If decoder-only, change lr for each component.
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
+
+        # Setup gradient clipping.
+        if grad_clip is not None:
+            for p in self.model.parameters():
+                p.register_hook(lambda grad: torch.clamp(grad, -grad_clip, grad_clip))
 
         # Load model + optimizer if a partially trained copy of it exists.
         epoch_it, it = self.load_partial_train_model(
