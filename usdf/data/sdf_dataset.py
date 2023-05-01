@@ -34,6 +34,7 @@ class SDFDataset(torch.utils.data.Dataset):
         self.sdf = []  # SDF values at query points.
         self.object_pose = []  # Object pose.
         self.partial_pointcloud = []  # Partial pointcloud.
+        self.angle = []  # Angle of the example.
 
         # Load data.
         for mesh_idx, partial_mesh_name in enumerate(self.meshes):
@@ -49,6 +50,9 @@ class SDFDataset(torch.utils.data.Dataset):
                 partial_fn = os.path.join(example_angle_partial_dir, "pointcloud.ply")
                 partial_pointcloud = utils.load_pointcloud(partial_fn)
 
+                info_fn = os.path.join(example_angle_partial_dir, "info.pkl.gzip")
+                info_dict = mmint_utils.load_gzip_pickle(info_fn)
+
                 # Append to data arrays.
                 self.example_idcs.append(mesh_idx * self.N_angles + angle_idx)
                 self.mesh_idcs.append(mesh_idx)
@@ -56,6 +60,7 @@ class SDFDataset(torch.utils.data.Dataset):
                 self.sdf.append(sdf_data["sdf_values"])
                 self.object_pose.append(sdf_data["object_pose"])
                 self.partial_pointcloud.append(partial_pointcloud)
+                self.angle.append(info_dict["angle"])
 
     def __len__(self):
         return len(self.example_idcs)
@@ -83,6 +88,7 @@ class SDFDataset(torch.utils.data.Dataset):
             "object_pose": self.object_pose[index],
             "query_points": query_points,
             "sdf": sdf,
+            "angle": self.angle[index],
         }
         return data_dict
 

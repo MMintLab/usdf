@@ -4,7 +4,10 @@ from usdf.deepsdf.training import Trainer
 
 
 def get_model(cfg, dataset, device=None):
-    deep_sdf = DeepSDF(len(dataset), cfg["model"]["z_object_size"], device)
+    use_angle = cfg["model"].get("use_angle", False)
+    sinusoidal_embed = cfg["model"].get("sinusoidal_embed", False)
+    deep_sdf = DeepSDF(len(dataset), cfg["model"]["z_object_size"], use_angle=use_angle,
+                       sinusoidal_embed=sinusoidal_embed, device=device)
     return deep_sdf
 
 

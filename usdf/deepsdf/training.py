@@ -36,10 +36,8 @@ class Trainer(BaseTrainer):
         mmint_utils.dump_cfg(os.path.join(out_dir, 'config.yaml'), self.cfg)
 
         # Get optimizer (TODO: Parameterize?)
-        optimizer = optim.Adam([
-            {'params': self.model.object_model.parameters(), 'lr': decoder_lr},
-            {'params': self.model.object_code.parameters(), 'lr': latent_lr}
-        ])
+        # TODO: If decoder-only, change lr for each component.
+        optimizer = optim.Adam(self.model.parameters(), lr=decoder_lr)
 
         # Load model + optimizer if a partially trained copy of it exists.
         epoch_it, it = self.load_partial_train_model(
@@ -87,9 +85,10 @@ class Trainer(BaseTrainer):
         example_idx = data["example_idx"].to(self.device)
         query_points = data["query_points"].to(self.device).float()
         sdf_labels = data["sdf"].to(self.device).float()
+        angle = data["angle"].to(self.device).float()
 
         # Run model forward.
-        z_object = self.model.encode_example(example_idx)
+        z_object = self.model.encode_example(example_idx, angle)
         out_dict = self.model(query_points, z_object)
 
         # Compute loss.

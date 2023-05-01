@@ -1,38 +1,47 @@
 import torch
 from torch import nn
 
-from usdf.models import mlp, meta_modules
-from usdf.models.deepsdf import DeepSDFObjectModule
+from usdf.models import meta_modules
 import usdf.loss as usdf_loss
 
 
 class DeepSDF(nn.Module):
 
-    def __init__(self, num_examples: int, z_object_size: int, device=None):
+    def __init__(self, num_examples: int, z_object_size: int, use_angle: bool, sinusoidal_embed: bool, device=None):
         super().__init__()
         self.z_object_size = z_object_size
         self.device = device
+        self.use_angle = use_angle
+        self.sinusoidal_embed = sinusoidal_embed
 
         # Setup the DeepSDF module.
-        # self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size).to(self.device)
-        # self.object_model = mlp.MLP(input_size=self.z_object_size + 3, output_size=1,
-        #                             hidden_sizes=[128, 128, 128]).to(self.device)
-        self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=1,
-                                                        hyper_in_features=self.z_object_size, hl=3).to(self.device)
+        self.object_model = meta_modules.virdo_hypernet(
+            in_features=3, out_features=1,
+            hyper_in_features=2 * self.z_object_size if self.sinusoidal_embed else self.z_object_size,
+            hl=3
+        ).to(self.device)
 
         # Setup latent embeddings (used during training).
-        self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(True).to(
-            self.device)
-        nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
+        if not self.use_angle:
+            self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(
+                True).to(
+                self.device)
+            nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
 
-    def encode_example(self, example_idx: torch.Tensor):
-        return self.object_code(example_idx)
+    def encode_example(self, example_idx: torch.Tensor, angle: torch.Tensor):
+        if self.use_angle:
+            embed = angle
+            embed = embed.unsqueeze(-1)
+        else:
+            embed = self.object_code(example_idx)
+
+        if self.sinusoidal_embed:
+            assert embed.shape[-1] == 1
+            embed = torch.cat([torch.sin(embed), torch.cos(embed)], dim=-1)
+
+        return embed
 
     def forward(self, query_points: torch.Tensor, z_object: torch.Tensor):
-        # z_object_ = z_object.unsqueeze(1).repeat(1, query_points.shape[1], 1)
-        # model_in = torch.cat([query_points, z_object_], dim=-1)
-        # model_out = self.object_model(model_in)
-
         model_in = {
             "coords": query_points,
             "embedding": z_object,

@@ -130,23 +130,4 @@ class Trainer(BaseTrainer):
             loss += float(self.train_loss_weights[loss_key]) * loss_dict[loss_key]
         loss_dict["loss"] = loss
 
-        # if it % 100 == 0.0:
-        # Plot predicted gaussian versus gaussian of GT.
-
-        # Calculate mean and standard deviation of sdf labels.
-        # sdf_labels_np = sdf_labels.flatten().cpu().numpy()
-        # sdf_labels_mean = np.mean(sdf_labels_np)
-        # sdf_labels_std = np.std(sdf_labels_np)
-
-        # plt.figure()
-        # sdf_labels_np = sdf_labels.flatten().cpu().numpy()
-        # plt.scatter(sdf_labels_np, np.zeros(len(sdf_labels_np)),
-        #             label="Ground truth SDF values")
-        # x = np.linspace(min(sdf_labels_np) - 0.01, max(sdf_labels_np) + 0.01, 100)
-        # plt.plot(x, stats.norm.pdf(x, out_dict["sdf_means"].item(), np.sqrt(out_dict["sdf_var"].item())))
-        # plt.plot(x, stats.norm.pdf(x, sdf_labels_mean, sdf_labels_std))
-        # plt.savefig("out/train_gaussian_animate/{}.png".format(it))
-        # # plt.show()
-        # plt.close()
-
         return loss_dict, out_dict

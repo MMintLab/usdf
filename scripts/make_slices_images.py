@@ -44,11 +44,11 @@ def make_slices_images(dataset_cfg: str, gen_dir: str, mode: str = "test", vis: 
         mean_color_image = (scalarMap.to_rgba(mean_image.flatten()) * 255) \
             .astype("uint8").reshape(100, 100, -1)
 
-        # if vis:
-        #     fig, (ax1, ax2) = plt.subplots(1, 2)
-        #     ax1.imshow(mean_color_image)
-        #     ax2.imshow(uncertainty_color_image)
-        #     plt.show()
+        if vis and False:
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.imshow(mean_color_image)
+            ax2.imshow(uncertainty_color_image)
+            plt.show()
 
         cv2.imwrite(os.path.join(gen_dir, "slice_mean_%d.png" % idx), cv2.cvtColor(mean_color_image, cv2.COLOR_RGB2BGR))
         cv2.imwrite(os.path.join(gen_dir, "slice_uncertainty_%d.png" % idx),
