@@ -1,23 +1,37 @@
+from enum import Enum
+
 import torch
 import torch.nn as nn
-from usdf.models import meta_modules, mlp, point_net
+from torch.distributions import Normal, Categorical, MixtureSameFamily
+
+from usdf.models import meta_modules, point_net
 from usdf.loss import hypo_weight_loss
-from usdf.models.deepsdf import DeepSDFObjectModule
+
+
+class Dist(Enum):
+    GAUSSIAN = "gaussian"
+    GMM = "gmm"
 
 
 class USDF(nn.Module):
 
-    def __init__(self, num_examples: int, z_object_size: int, use_encoder: bool, device=None):
+    def __init__(self, num_examples: int, z_object_size: int, use_encoder: bool, num_components: int = 1,
+                 distribution: Dist = Dist.GAUSSIAN, device=None):
         super().__init__()
         self.z_object_size = z_object_size
         self.device = device
         self.use_encoder = use_encoder
+        self.num_components = num_components  # Only used for GMM.
+        self.distribution = distribution
+
+        out_features = -1
+        if self.distribution == Dist.GAUSSIAN:
+            out_features = 2
+        elif self.distribution == Dist.GMM:
+            out_features = 3 * self.num_components
 
         # Setup the DeepSDF module.
-        # self.object_model = DeepSDFObjectModule(z_object_size=self.z_object_size, out_dim=2,
-        #                                         final_activation="none").to(self.device)
-
-        self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=2,
+        self.object_model = meta_modules.virdo_hypernet(in_features=3, out_features=out_features,
                                                         hyper_in_features=self.z_object_size, hl=4).to(self.device)
 
         if self.use_encoder:
@@ -44,13 +58,27 @@ class USDF(nn.Module):
         }
         model_out = self.object_model(model_in)
 
-        sdf_means = model_out["model_out"][..., 0]
-        sdf_var = torch.exp(model_out["model_out"][..., 1])  # Ensure positive.
+        dist_feats = model_out["model_out"]
+
+        # Build distribution from predictions.
+        dist = None
+        if self.distribution == Dist.GAUSSIAN:
+            sdf_means = dist_feats[..., 0]
+            sdf_var = torch.exp(dist_feats[..., 1])  # Ensure positive.
+
+            dist = Normal(sdf_means, sdf_var)
+        elif self.distribution == Dist.GMM:
+            mixture_weights = torch.softmax(dist_feats[..., :self.num_components], dim=-1)
+            sdf_means = dist_feats[..., self.num_components:2 * self.num_components]
+            sdf_var = torch.exp(dist_feats[..., 2 * self.num_components:3 * self.num_components])  # Ensure positive.
+
+            mix = Categorical(mixture_weights)
+            comp = Normal(sdf_means, sdf_var)
+            dist = MixtureSameFamily(mix, comp)
 
         out_dict = {
             "query_points": query_points,
-            "sdf_means": sdf_means,
-            "sdf_var": sdf_var,
+            "dist": dist,
             "hypo_params": model_out["hypo_params"],
             "embedding": z_object,
         }

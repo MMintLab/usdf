@@ -1,4 +1,4 @@
-from usdf.usdf.models.uncertain_sdf import USDF
+from usdf.usdf.models.uncertain_sdf import USDF, Dist
 from usdf.usdf.training import Trainer
 from usdf.usdf.generation import Generator
 
@@ -6,7 +6,11 @@ from usdf.usdf.generation import Generator
 def get_model(cfg, dataset, device=None):
     num_examples = len(dataset)
 
-    model = USDF(num_examples, cfg["model"]["z_object_size"], cfg["model"]["use_encoder"], device).to(device)
+    num_components = cfg["model"].get("num_components", 1)
+    dist_class = Dist(cfg["model"]["distribution"])
+
+    model = USDF(num_examples, cfg["model"]["z_object_size"], cfg["model"]["use_encoder"], num_components, dist_class,
+                 device).to(device)
     return model
 
 

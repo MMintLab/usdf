@@ -107,13 +107,8 @@ class Trainer(BaseTrainer):
         loss_dict = dict()
 
         # SDF loss.
-        if len(sdf_labels.shape) == 3:
-            mean = out_dict["sdf_means"].flatten().repeat_interleave(sdf_labels.shape[-1])
-            var = out_dict["sdf_var"].flatten().repeat_interleave(sdf_labels.shape[-1])
-        else:
-            mean = out_dict["sdf_means"].flatten()
-            var = out_dict["sdf_var"].flatten()
-        sdf_loss = F.gaussian_nll_loss(mean, sdf_labels.flatten(), var)
+        dist = out_dict["dist"]
+        sdf_loss = -dist.log_prob(sdf_labels).mean()
         loss_dict["sdf_loss"] = sdf_loss
 
         # Latent embedding loss: well-formed embedding.
