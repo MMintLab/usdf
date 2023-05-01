@@ -1,5 +1,0 @@
-dataset: UncertaintySDFDataset
-meshes_dir: out/meshes/shapenet/mugs_proc/
-dataset_dir: out/datasets/mugs_small_v1/
-splits:
-  train: train_small.txt
