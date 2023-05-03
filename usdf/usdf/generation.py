@@ -46,14 +46,14 @@ class Generator(BaseGenerator):
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
-            return self.model.forward(query_points.unsqueeze(0), latent)["sdf_means"]
+            return self.model.forward(query_points.unsqueeze(0), latent)["dist"].mean[0]
 
         mesh = create_mesh(sdf_fn, n=self.mesh_resolution)
 
         # At each mesh point, calculate uncertainty.
         mesh_points = torch.from_numpy(mesh.vertices).to(self.device).float().unsqueeze(0)
         pred_dict = self.model.forward(mesh_points, latent)
-        uncertainty = pred_dict["sdf_var"].detach().cpu().numpy()[0]
+        uncertainty = pred_dict["dist"].stddev.detach().cpu().numpy()[0]
 
         return {"vertices": mesh.vertices, "faces": mesh.faces, "uncertainty": uncertainty}, \
             {"latent": latent}
@@ -73,8 +73,11 @@ class Generator(BaseGenerator):
 
         # Evaluate uncertainty at query points.
         pred_dict = self.model.forward(query_points.unsqueeze(0), latent)
-        mean = pred_dict["sdf_means"].detach().cpu().numpy()[0]
-        uncertainty = pred_dict["sdf_var"].detach().cpu().numpy()[0]
+        dist = pred_dict["dist"]
+        # mean = pred_dict["sdf_means"].detach().cpu().numpy()[0]
+        mean = dist.mean.detach().cpu().numpy()[0]
+        # uncertainty = pred_dict["sdf_var"].detach().cpu().numpy()[0]
+        uncertainty = dist.stddev.detach().cpu().numpy()[0]
 
         # Reshape uncertainty to image.
         mean = mean.reshape(100, 100)

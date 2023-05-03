@@ -64,7 +64,7 @@ class USDF(nn.Module):
         dist = None
         if self.distribution == Dist.GAUSSIAN:
             sdf_means = dist_feats[..., 0]
-            sdf_var = torch.exp(dist_feats[..., 1])  # Ensure positive.
+            sdf_var = torch.exp(dist_feats[..., 1]) + 1e-10  # Ensure positive.
 
             dist = Normal(sdf_means, sdf_var)
         elif self.distribution == Dist.GMM:

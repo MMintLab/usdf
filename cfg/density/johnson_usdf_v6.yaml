@@ -27,3 +27,4 @@ training:
 model:
   z_object_size: 16
   use_encoder: true
+  distribution: gaussian
