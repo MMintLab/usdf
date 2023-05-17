@@ -35,7 +35,7 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
 
         pred_mesh = pred_meshes[idx]
         if type(pred_mesh) == trimesh.Trimesh:
-            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]), "Predicted")
+            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]), "Predicted", Points(pc, c="b"))
         elif type(pred_mesh) == dict:
             vertex_uncertainty = pred_mesh["uncertainty"]
 

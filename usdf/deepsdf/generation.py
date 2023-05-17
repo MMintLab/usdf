@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 
@@ -12,6 +13,12 @@ def get_surface_loss_fn(embed_weight: float):
         # Pull out relevant data.
         surface_coords_ = torch.from_numpy(data_dict["partial_pointcloud"]).to(device).float().unsqueeze(0)
         surface_coords_ = surface_coords_.repeat(latent.shape[0], 1, 1)
+
+        if model.use_angle:
+            latent = model.encode_example(torch.tensor([data_dict["example_idx"]]).to(device), latent)
+        elif model.sinusoidal_embed:
+            assert latent.shape[-1] == 1
+            latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
 
         # Predict with updated latents.
         pred_dict_ = model.forward(surface_coords_, latent)
@@ -38,16 +45,19 @@ class Generator(BaseGenerator):
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
-        self.num_latent = generation_cfg.get("num_latent", 1)
+        self.num_latent = generation_cfg.get("num_latent", 4)
 
     def generate_latent(self, data):
         if self.gen_from_known_latent:
-            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device))
+            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
+                                               torch.tensor([data["angle"]]).to(self.device).float())
         else:
-            z_object_, latent_metadata = inference_by_optimization(self.model, get_surface_loss_fn(0.01),
+            z_object_, latent_metadata = inference_by_optimization(self.model, get_surface_loss_fn(0.0),
                                                                    self.model.z_object_size,
                                                                    self.num_latent, data, device=self.device,
-                                                                   verbose=False)
+                                                                   verbose=True, inf_params={
+                    "std_init": 1.0
+                })
             latent = z_object_.weight[torch.argmin(latent_metadata["final_loss"])].unsqueeze(0)
         return latent
 
@@ -57,6 +67,12 @@ class Generator(BaseGenerator):
             latent = metadata["latent"]
         else:
             latent = self.generate_latent(data)
+
+        if self.model.use_angle:
+            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device), latent)
+        elif self.model.sinusoidal_embed:
+            assert latent.shape[-1] == 1
+            latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
