@@ -45,10 +45,10 @@ class Generator(BaseGenerator):
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
-        self.num_latent = generation_cfg.get("num_latent", 4)
+        self.num_latent = generation_cfg.get("num_latent", 1)
 
     def generate_latent(self, data):
-        if self.gen_from_known_latent:
+        if self.gen_from_known_latent or self.model.use_angle:
             latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
                                                torch.tensor([data["angle"]]).to(self.device).float())
         else:
@@ -68,15 +68,11 @@ class Generator(BaseGenerator):
         else:
             latent = self.generate_latent(data)
 
-        if self.model.use_angle:
-            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device), latent)
-        elif self.model.sinusoidal_embed:
-            assert latent.shape[-1] == 1
-            latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
-
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
-            return self.model.forward(query_points.unsqueeze(0), latent)["sdf"]
+            return torch.where(torch.norm(query_points, dim=-1) <= 1.1,
+                               self.model.forward(query_points.unsqueeze(0), latent)["sdf"][0],
+                               torch.tensor(1.1).to(self.device).float())
 
         mesh = create_mesh(sdf_fn, n=self.mesh_resolution)
         return mesh, {"latent": latent}

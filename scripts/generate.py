@@ -1,4 +1,8 @@
 import os.path
+import random
+
+import numpy as np
+import torch
 
 import mmint_utils
 import yaml
@@ -62,9 +66,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Seed for repeatability.
-    # torch.manual_seed(10)
-    # np.random.seed(10)
-    # random.seed(10)
+    torch.manual_seed(10)
+    np.random.seed(10)
+    random.seed(10)
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
 
