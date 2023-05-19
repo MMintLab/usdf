@@ -1,4 +1,6 @@
 from collections import Callable
+
+import numpy as np
 import torch
 import torch.optim as optim
 
@@ -6,7 +8,8 @@ import torch.nn as nn
 from tqdm import trange
 
 
-def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: int, num_latent: int, data_dict: dict,
+def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Callable, latent_size: int,
+                              num_latent: int, data_dict: dict,
                               inf_params=None, device: torch.device = None, verbose: bool = False):
     """
     Helper with basic inference by optimization structure. Repeatedly calls loss function with the specified
@@ -15,8 +18,9 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     Args:
     - model (nn.Module): network model
     - loss_fn (Callable): loss function. Should take in model, current latent, data dictionary, and device and return loss.
+    - init_fn (Callable): initialization function. Should init the given embedding.
     - latent_size (int): specify latent space size.
-    - num_latent (int): number of latent codes to pass to loss.
+    - num_examples (int): number of examples to run inference on.
     - data_dict (dict): data dictionary for example(s) we are inferring for.
     - inf_params (dict): inference hyper-parameters.
     - device (torch.device): pytorch device.
@@ -28,19 +32,20 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     model.eval()
 
     # Load inference hyper parameters.
-    init_mean = inf_params.get("init_mean", 0.0)
-    init_std = inf_params.get("init_std", 0.1)
     lr = inf_params.get("lr", 3e-2)
-    num_steps = inf_params.get("iter_limit", 1000)
-    epsilon = inf_params.get("conv_eps", 0.0)
+    num_steps = inf_params.get("iter_limit", 300)
 
     # Initialize latent code as noise.
     z_ = nn.Embedding(num_latent, latent_size, dtype=torch.float32).requires_grad_(True).to(device)
-    torch.nn.init.normal_(z_.weight, mean=init_mean, std=init_std)
+    init_fn(z_, device)  # Call provided init function.
     optimizer = optim.Adam(z_.parameters(), lr=lr)
 
     # Start optimization procedure.
     z = z_.weight
+
+    # Store history of latents/loss.
+    z_history = []
+    loss_history = []
 
     iter_idx = 0
     if verbose:
@@ -50,14 +55,16 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
     for iter_idx in range_:
         optimizer.zero_grad()
 
-        loss, _ = loss_fn(model, z, data_dict, device)
+        # Store latent history.
+        z_history.append(z.detach().cpu().numpy().copy())
+
+        loss, loss_ind = loss_fn(model, z, data_dict, device)
+
+        # Store loss history.
+        loss_history.append(loss_ind.detach().cpu().numpy().copy())
 
         loss.backward()
         optimizer.step()
-
-        # Check for convergence.
-        # if torch.allclose(z.grad, torch.zeros_like(z.grad), atol=epsilon):
-        #     break
 
         if verbose:
             range_.set_postfix(loss=loss.item())
@@ -65,4 +72,8 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, latent_size: 
         range_.close()
 
     _, final_loss = loss_fn(model, z, data_dict, device)
-    return z_, {"final_loss": final_loss, "iters": 0 if iter_idx == 0 else iter_idx + 1}
+    z_history.append(z.detach().cpu().numpy().copy())
+    loss_history.append(final_loss.detach().cpu().numpy().copy())
+
+    return z_, {"final_loss": final_loss, "iters": iter_idx + 1,
+                "z_history": z_history, "loss_history": loss_history}

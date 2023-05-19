@@ -18,6 +18,7 @@ def one_d_interpolation_test(model_cfg, model, model_file, device, gen_args: dic
     generation_cfg = load_generation_cfg(model_cfg, model_file)
     if gen_args is not None:
         generation_cfg.update(gen_args)
+    generation_cfg["gen_from_known_latent"] = True
 
     # Load generator.
     generator = config.get_generator(model_cfg, model, generation_cfg, device)
@@ -42,7 +43,7 @@ def one_d_interpolation_test(model_cfg, model, model_file, device, gen_args: dic
         plot.at(0).remove(plot.get_meshes(0)[0])
         plot.at(0).add(vis_meshes[idx])
 
-    plot.add_slider(update_plotter, xmin=0, xmax=len(vis_meshes) - 1, # xmax=2 * np.pi, value=0,
+    plot.add_slider(update_plotter, xmin=0, xmax=len(vis_meshes) - 1,  # xmax=2 * np.pi, value=0,
                     pos="bottom", title="Angle")
     plot.interactive().show()
 

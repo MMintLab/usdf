@@ -37,6 +37,20 @@ def get_surface_loss_fn(embed_weight: float):
     return surface_loss_fn
 
 
+def get_init_function(init_mode: str = "random"):
+    if init_mode == "random":
+        def init_function(embedding: nn.Embedding, device=None):
+            torch.nn.init.normal_(embedding.weight, mean=0.0, std=0.1)
+
+        return init_function
+    elif init_mode == "1d_interpolation":
+        def init_function(embedding: nn.Embedding, device=None):
+            embedding.weight.data = torch.arange(0.0, 2 * np.pi, 2 * np.pi / embedding.weight.shape[0],
+                                                 device=device, requires_grad=True).unsqueeze(-1)
+
+        return init_function
+
+
 class Generator(BaseGenerator):
 
     def __init__(self, cfg: dict, model: nn.Module, generation_cfg: dict, device: torch.device = None):
@@ -46,20 +60,34 @@ class Generator(BaseGenerator):
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
         self.num_latent = generation_cfg.get("num_latent", 1)
+        self.embed_weight = generation_cfg.get("embed_weight", 0.0)
+        self.init_mode = generation_cfg.get("init_mode", "random")
 
     def generate_latent(self, data):
-        if self.gen_from_known_latent or self.model.use_angle:
+        latent_metadata = {}
+        if self.gen_from_known_latent:
             latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
                                                torch.tensor([data["angle"]]).to(self.device).float())
         else:
-            z_object_, latent_metadata = inference_by_optimization(self.model, get_surface_loss_fn(0.0),
+            z_object_, latent_metadata = inference_by_optimization(self.model,
+                                                                   get_surface_loss_fn(self.embed_weight),
+                                                                   get_init_function(self.init_mode),
                                                                    self.model.z_object_size,
-                                                                   self.num_latent, data, device=self.device,
-                                                                   verbose=True, inf_params={
-                    "std_init": 1.0
-                })
+                                                                   self.num_latent,
+                                                                   data,
+                                                                   device=self.device,
+                                                                   verbose=True)
+
             latent = z_object_.weight[torch.argmin(latent_metadata["final_loss"])].unsqueeze(0)
-        return latent
+
+            if self.model.use_angle:
+                latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
+                                                   latent.squeeze(-1))
+            elif self.model.sinusoidal_embed:
+                assert latent.shape[-1] == 1
+                latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
+
+        return latent, latent_metadata
 
     def generate_mesh(self, data, metadata):
         # Check if we have been provided with the latent already.
