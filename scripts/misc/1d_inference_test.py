@@ -1,3 +1,4 @@
+import os.path
 import random
 
 import numpy as np
@@ -6,13 +7,18 @@ import yaml
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+import mmint_utils
 from usdf import config
 from usdf.utils.args_utils import get_model_dataset_arg_parser, load_model_dataset_from_args
 from usdf.utils.model_utils import load_generation_cfg
 
 
-def one_d_inference_test(model_cfg, model, model_file, dataset, device, gen_args: dict, animate: bool):
+def one_d_inference_test(model_cfg, model, model_file, dataset, device, gen_args: dict, animate: bool,
+                         out_dir: str = None):
     model.eval()
+
+    if out_dir is not None:
+        mmint_utils.make_dir(out_dir)
 
     # Load generate cfg, if present.
     generation_cfg = load_generation_cfg(model_cfg, model_file)
@@ -61,14 +67,21 @@ def one_d_inference_test(model_cfg, model, model_file, dataset, device, gen_args
             fig.canvas.draw_idle()
 
         if animate:
-            anim = animation.FuncAnimation(fig, update_plotter, frames=z_history.shape[1], interval=10)
+            anim = animation.FuncAnimation(fig, update_plotter, frames=z_history.shape[1], interval=10,
+                                           repeat=out_dir is None)
+
+            if out_dir is not None:
+                out_fn = os.path.join(out_dir, f"opt_{idx}.gif")
+                anim.save(out_fn, dpi=80, writer='ffmpeg')
+            else:
+                plt.show()
         else:
             fig.subplots_adjust(bottom=0.25)
             ax_slider = plt.axes([0.25, 0.1, 0.65, 0.03])
             slider = plt.Slider(ax=ax_slider, label="Iteration", valmin=0, valmax=z_history.shape[1] - 1, valinit=0,
                                 valstep=1)
             slider.on_changed(update_plotter)
-        plt.show()
+            plt.show()
 
 
 if __name__ == '__main__':
@@ -76,6 +89,7 @@ if __name__ == '__main__':
     parser.add_argument("--gen_args", type=yaml.safe_load, default=None, help="Generation args.")
     parser.add_argument("--animate", "-a", action="store_true", help="Animate the latent optimization.")
     parser.set_defaults(animate=False)
+    parser.add_argument("--out_dir", "-o", type=str, default=None, help="Output directory.")
     args = parser.parse_args()
 
     # Seed for repeatability.
@@ -84,4 +98,5 @@ if __name__ == '__main__':
     random.seed(10)
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
-    one_d_inference_test(model_cfg_, model_, args.model_file, dataset_, device_, args.gen_args, args.animate)
+    one_d_inference_test(model_cfg_, model_, args.model_file, dataset_, device_, args.gen_args, args.animate,
+                         args.out_dir)

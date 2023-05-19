@@ -94,7 +94,7 @@ class Generator(BaseGenerator):
         if "latent" in metadata:
             latent = metadata["latent"]
         else:
-            latent = self.generate_latent(data)
+            latent, _ = self.generate_latent(data)
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
