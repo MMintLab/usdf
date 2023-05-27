@@ -25,8 +25,8 @@ def preprocess_mug(mug_dir: str, out_dir: str, center: bool = False, vis: bool =
 
         # Center mesh.
         if center:
-            center = np.mean(np.array(mesh.bounds), axis=0)
-            mesh.apply_transform(trimesh.transformations.translation_matrix(-center))
+            mesh_center = np.mean(np.array(mesh.bounds), axis=0)
+            mesh.apply_transform(trimesh.transformations.translation_matrix(-mesh_center))
 
         # Scale mesh to fit in unit sphere.
         r = np.linalg.norm(mesh.vertices, axis=1).max()

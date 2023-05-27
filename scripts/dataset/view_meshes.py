@@ -6,12 +6,13 @@ import numpy as np
 import trimesh
 
 
-def view_meshes(dataset_cfg: dict, split):
-    meshes_dir = dataset_cfg["meshes_dir"]
-
+def view_meshes(meshes_dir: str, split: str = None):
     # Load split info.
-    split_fn = os.path.join(meshes_dir, "splits", split + ".txt")
-    mesh_fns = np.loadtxt(split_fn, dtype=str)
+    if split is not None:
+        split_fn = os.path.join(meshes_dir, "splits", split + ".txt")
+        mesh_fns = np.loadtxt(split_fn, dtype=str)
+    else:
+        mesh_fns = [f for f in os.listdir(meshes_dir) if ".obj" in f]
 
     for mesh_fn in mesh_fns:
         print(mesh_fn)
@@ -23,10 +24,8 @@ def view_meshes(dataset_cfg: dict, split):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Render dataset.")
-    parser.add_argument("dataset_cfg", type=str, help="Dataset configuration file.")
-    parser.add_argument("split", type=str, help="Split to render.")
+    parser.add_argument("meshes_dir", type=str, help="Meshes directory.")
+    parser.add_argument("--split", "-s", type=str, default=None, required=False, help="Split to render.")
     args = parser.parse_args()
 
-    dataset_cfg_ = mmint_utils.load_cfg(args.dataset_cfg)
-
-    view_meshes(dataset_cfg_, args.split)
+    view_meshes(args.meshes_dir, args.split)
