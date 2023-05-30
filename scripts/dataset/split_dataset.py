@@ -6,17 +6,20 @@ import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Split dataset into train/test.")
+    parser.add_argument("meshes_dir", type=str, help="Meshes directory.")
     parser.add_argument("dataset_dir", type=str, help="Dataset directory.")
     args = parser.parse_args()
 
+    meshes_dir = args.meshes_dir
     dataset_dir = args.dataset_dir
+    mmint_utils.make_dir(dataset_dir)
     splits_dir = os.path.join(dataset_dir, "splits")
     mmint_utils.make_dir(splits_dir)
 
-    mesh_fns = [f for f in os.listdir(dataset_dir) if ".obj" in f]
+    mesh_fns = [f for f in os.listdir(meshes_dir) if ".obj" in f]
     np.random.shuffle(mesh_fns)
 
-    num_train = int(0.8 * len(mesh_fns))
+    num_train = int(0.9 * len(mesh_fns))
     train_fns = mesh_fns[:num_train]
     test_fns = mesh_fns[num_train:]
 
