@@ -7,17 +7,16 @@ import usdf.loss as usdf_loss
 
 class DeepSDF(nn.Module):
 
-    def __init__(self, num_examples: int, z_object_size: int, use_angle: bool, sinusoidal_embed: bool, device=None):
+    def __init__(self, num_examples: int, z_object_size: int, use_angle: bool, device=None):
         super().__init__()
         self.z_object_size = z_object_size
         self.device = device
         self.use_angle = use_angle
-        self.sinusoidal_embed = sinusoidal_embed
 
         # Setup the DeepSDF module.
         self.object_model = meta_modules.virdo_hypernet(
             in_features=3, out_features=1,
-            hyper_in_features=2 * self.z_object_size if self.sinusoidal_embed else self.z_object_size,
+            hyper_in_features=self.z_object_size,
             hl=3
         ).to(self.device)
 
@@ -34,10 +33,6 @@ class DeepSDF(nn.Module):
             embed = embed.unsqueeze(-1)
         else:
             embed = self.object_code(example_idx)
-
-        if self.sinusoidal_embed:
-            assert embed.shape[-1] == 1
-            embed = torch.cat([torch.sin(embed), torch.cos(embed)], dim=-1)
 
         return embed
 
