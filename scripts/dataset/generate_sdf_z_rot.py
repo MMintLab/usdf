@@ -25,7 +25,7 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
     mmint_utils.make_dir(sdfs_dir)
 
     # Load split info.
-    split_fn = os.path.join(meshes_dir, "splits", dataset_cfg["splits"][split])
+    split_fn = os.path.join(dataset_dir, "splits", dataset_cfg["splits"][split])
     meshes = np.atleast_1d(np.loadtxt(split_fn, dtype=str))
     meshes = [m.replace(".obj", "") for m in meshes]
 
