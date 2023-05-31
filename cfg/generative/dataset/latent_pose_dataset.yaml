@@ -1,0 +1,17 @@
+data:
+  train:
+    dataset: SDFDataset
+    meshes_dir: out/meshes/shapenet/mugs_proc/
+    dataset_dir: out/datasets/generative/mugs_v1/
+    N_angles: 32
+    N_random: 25000
+    N_off_surface: 250000
+    N_sdf: 120000
+    has_point_clouds: False
+    balance_semantics: False
+    off_surface_sigma_a: 0.05
+    off_surface_sigma_b: 0.015811388300841896
+    mesh_scale: 0.75
+    xyz_offset_max: 0.25
+    splits:
+      train: train.txt

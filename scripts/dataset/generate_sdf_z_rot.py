@@ -21,6 +21,9 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
         "off_surface_sigma_a"]  # Standard deviation of Gaussian to sample off surface points.
     off_surface_sigma_b = dataset_cfg[
         "off_surface_sigma_b"]  # Standard deviation of Gaussian to sample off surface points.
+    mesh_scale = dataset_cfg.get("mesh_scale", 1.0)  # Scale the meshes by this factor.
+    xyz_offset_max = dataset_cfg.get("xyz_offset_max", 0.0)  # Max offset in x, y, z directions.
+
     sdfs_dir = os.path.join(dataset_dir, "sdfs")
     mmint_utils.make_dir(sdfs_dir)
 
@@ -45,10 +48,15 @@ def generate_sdf_z_rot(dataset_cfg: dict, split: str, vis: bool = False):
                 example_sdf_angle_dir = os.path.join(example_sdf_dir, "angle_%d" % angle_idx)
                 mmint_utils.make_dir(example_sdf_angle_dir)
 
-                # Rotate source mesh.
+                # Transform source mesh.
                 rot_mesh = source_mesh.copy()
                 object_pose = np.eye(4)
+                # Sample translation offset.
+                xyz_offset = np.random.uniform(-xyz_offset_max, xyz_offset_max, size=3)
+                object_pose[:3, 3] = xyz_offset
                 object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle_idx * 2 * np.pi / N_angles, axes="sxyz")
+                object_pose[:3, :3] *= mesh_scale  # Apply scaling.
+
                 rot_mesh.apply_transform(object_pose)
 
                 # Generate SDF data for rotated mesh.
