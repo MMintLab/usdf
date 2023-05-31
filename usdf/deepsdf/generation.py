@@ -66,8 +66,7 @@ class Generator(BaseGenerator):
     def generate_latent(self, data):
         latent_metadata = {}
         if self.gen_from_known_latent:
-            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
-                                               torch.tensor([data["angle"]]).to(self.device).float())
+            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device))
         else:
             z_object_, latent_metadata = inference_by_optimization(self.model,
                                                                    get_surface_loss_fn(self.embed_weight),

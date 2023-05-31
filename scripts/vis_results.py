@@ -24,18 +24,19 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
     for idx in trange(offset, len(dataset)):
         data_dict = dataset[idx]
 
-        pc = data_dict["partial_pointcloud"]
+        # pc = data_dict["partial_pointcloud"]
 
         plt = Plotter(shape=(1, 2))
         plt.at(0).show(
             Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]),
-            Points(pc, c="b"),
+            # Points(pc, c="b"),
             "Ground Truth"
         )
 
         pred_mesh = pred_meshes[idx]
         if type(pred_mesh) == trimesh.Trimesh:
-            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]), "Predicted", Points(pc, c="b"))
+            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]),
+                           "Predicted")  # , Points(pc, c="b"))
         elif type(pred_mesh) == dict:
             vertex_uncertainty = pred_mesh["uncertainty"]
 
