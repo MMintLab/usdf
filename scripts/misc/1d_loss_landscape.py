@@ -27,11 +27,11 @@ def surface_loss_fn(model, latent, data_dict, device):
     return loss.mean(), loss
 
 
-def one_d_loss_landscape(model_cfg, model, model_file, dataset, device):
+def one_d_loss_landscape(model_cfg, model, model_file, dataset, device, offset: int = 0):
     model.eval()
     n = 256  # Number of points to evaluate loss landscape at.
 
-    for idx in range(len(dataset)):
+    for idx in range(offset, len(dataset)):
         data_dict = dataset[idx]
 
         angles = np.linspace(0.0, 2 * np.pi, num=n)
@@ -52,7 +52,8 @@ def one_d_loss_landscape(model_cfg, model, model_file, dataset, device):
 
 if __name__ == '__main__':
     parser = get_model_dataset_arg_parser()
+    parser.add_argument("--offset", "-o", type=int, default=0, help="Offset into dataset to use.")
     args = parser.parse_args()
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
-    one_d_loss_landscape(model_cfg_, model_, args.model_file, dataset_, device_)
+    one_d_loss_landscape(model_cfg_, model_, args.model_file, dataset_, device_, args.offset)
