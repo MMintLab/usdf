@@ -58,6 +58,7 @@ class Generator(BaseGenerator):
         self.num_latent = generation_cfg.get("num_latent", 1)
         self.embed_weight = generation_cfg.get("embed_weight", 0.0)
         self.init_mode = generation_cfg.get("init_mode", "random")
+        self.iter_limit = generation_cfg.get("iter_limit", 300)
 
     def generate_latent(self, data):
         latent_metadata = {}
@@ -71,6 +72,7 @@ class Generator(BaseGenerator):
                                                                    self.model.z_object_size,
                                                                    self.num_latent,
                                                                    data,
+                                                                   inf_params={"iter_limit": self.iter_limit},
                                                                    device=self.device,
                                                                    verbose=True)
 
