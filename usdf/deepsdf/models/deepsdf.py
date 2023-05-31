@@ -27,7 +27,7 @@ class DeepSDF(nn.Module):
                 self.device)
             nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
 
-    def encode_example(self, example_idx: torch.Tensor, angle: torch.Tensor):
+    def encode_example(self, example_idx: torch.Tensor):
         if self.use_angle:
             embed = angle
             embed = embed.unsqueeze(-1)
