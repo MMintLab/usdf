@@ -11,6 +11,7 @@ data:
     N_pc: 9000
     off_surface_sigma_a: 0.05
     off_surface_sigma_b: 0.015811388300841896
+    has_point_clouds: true
     splits:
       train: train.txt
 training:
@@ -30,4 +31,4 @@ training:
 model:
   z_object_size: 1
   use_angle: true
-  sinusoidal_embed: true
+  sinusoidal_embedding: true

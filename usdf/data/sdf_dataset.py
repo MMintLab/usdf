@@ -3,6 +3,7 @@ import os
 import numpy as np
 import torch.utils.data
 import trimesh
+import transforms3d as tf3d
 
 import mmint_utils
 from vedo import Plotter, Points, Mesh
@@ -36,6 +37,7 @@ class SDFDataset(torch.utils.data.Dataset):
         self.sdf = []  # SDF values at query points.
         self.object_pose = []  # Object pose.
         self.partial_pointcloud = []  # Partial pointcloud.
+        self.angle = []  # Angle of the example.
 
         # Load data.
         for mesh_idx, partial_mesh_name in enumerate(self.meshes):
@@ -53,12 +55,17 @@ class SDFDataset(torch.utils.data.Dataset):
                     partial_pointcloud = utils.load_pointcloud(partial_fn)
                     self.partial_pointcloud.append(partial_pointcloud)
 
+                # Get angle of the example from object pose.
+                object_pose = sdf_data["object_pose"]
+                ex, ey, ez = tf3d.euler.mat2euler(object_pose[:3, :3], axes="sxyz")
+                self.angle.append(ez)  # Save just ez.
+
                 # Append to data arrays.
                 self.example_idcs.append(mesh_idx * self.N_angles + angle_idx)
                 self.mesh_idcs.append(mesh_idx)
                 self.query_points.append(sdf_data["query_points"])
                 self.sdf.append(sdf_data["sdf_values"])
-                self.object_pose.append(sdf_data["object_pose"])
+                self.object_pose.append(object_pose)
 
     def __len__(self):
         return len(self.example_idcs)
@@ -79,6 +86,7 @@ class SDFDataset(torch.utils.data.Dataset):
             "object_pose": self.object_pose[index],
             "query_points": query_points,
             "sdf": sdf,
+            "angle": self.angle[index],
         }
 
         if self.has_point_clouds:

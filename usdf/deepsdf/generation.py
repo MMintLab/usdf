@@ -14,16 +14,12 @@ def get_surface_loss_fn(embed_weight: float):
         surface_coords_ = torch.from_numpy(data_dict["partial_pointcloud"]).to(device).float().unsqueeze(0)
         surface_coords_ = surface_coords_.repeat(latent.shape[0], 1, 1)
 
+        # If we are using the angle as the input, we must apply the sinusoidal embedding.
         if model.use_angle:
-            latent = model.encode_example(torch.tensor([data_dict["example_idx"]]).to(device), latent)
-        elif model.sinusoidal_embed:
-            assert latent.shape[-1] == 1
             latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
 
         # Predict with updated latents.
         pred_dict_ = model.forward(surface_coords_, latent)
-
-        # loss = 0.0
 
         # Loss: all points on surface should have SDF = 0.0.
         sdf_loss = torch.mean(torch.abs(pred_dict_["sdf"]), dim=-1)
@@ -66,7 +62,8 @@ class Generator(BaseGenerator):
     def generate_latent(self, data):
         latent_metadata = {}
         if self.gen_from_known_latent:
-            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device))
+            latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
+                                               torch.tensor([data["angle"]]).to(self.device).float())
         else:
             z_object_, latent_metadata = inference_by_optimization(self.model,
                                                                    get_surface_loss_fn(self.embed_weight),
@@ -78,13 +75,6 @@ class Generator(BaseGenerator):
                                                                    verbose=True)
 
             latent = z_object_.weight[torch.argmin(latent_metadata["final_loss"])].unsqueeze(0)
-
-            if self.model.use_angle:
-                latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
-                                                   latent.squeeze(-1))
-            elif self.model.sinusoidal_embed:
-                assert latent.shape[-1] == 1
-                latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
 
         return latent, latent_metadata
 

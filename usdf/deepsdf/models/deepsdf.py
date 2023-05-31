@@ -16,7 +16,7 @@ class DeepSDF(nn.Module):
         # Setup the DeepSDF module.
         self.object_model = meta_modules.virdo_hypernet(
             in_features=3, out_features=1,
-            hyper_in_features=self.z_object_size,
+            hyper_in_features=2 if self.use_angle else self.z_object_size,
             hl=3
         ).to(self.device)
 
@@ -27,10 +27,13 @@ class DeepSDF(nn.Module):
                 self.device)
             nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
 
-    def encode_example(self, example_idx: torch.Tensor):
+    def encode_example(self, example_idx: torch.Tensor, angle: torch.Tensor):
         if self.use_angle:
             embed = angle
             embed = embed.unsqueeze(-1)
+
+            # Sinusoidal embedding.
+            embed = torch.cat([torch.sin(embed), torch.cos(embed)], dim=-1)
         else:
             embed = self.object_code(example_idx)
 

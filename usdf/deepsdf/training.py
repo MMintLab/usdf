@@ -85,9 +85,10 @@ class Trainer(BaseTrainer):
         example_idx = data["example_idx"].to(self.device)
         query_points = data["query_points"].to(self.device).float()
         sdf_labels = data["sdf"].to(self.device).float()
+        angle = data["angle"].to(self.device).float()
 
         # Run model forward.
-        z_object = self.model.encode_example(example_idx)
+        z_object = self.model.encode_example(example_idx, angle)
         out_dict = self.model(query_points, z_object)
 
         # Compute loss.
