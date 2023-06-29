@@ -1,6 +1,7 @@
 from torchvision import transforms
 
 from usdf.data.sdf_dataset import SDFDataset
+from usdf.data.sdf_tf_dataset import SDFTFDataset
 from usdf.data.uncertainty_dataset import UncertaintyDataset
 import usdf.usdf as usdf_model
 import usdf.deepsdf as deepsdf
@@ -67,6 +68,8 @@ def get_dataset(mode, cfg):
         dataset = UncertaintyDataset(cfg['data'][mode], mode, transform=transforms_)
     elif dataset_type == "SDFDataset":
         dataset = SDFDataset(cfg['data'][mode], mode, transform=transforms_)
+    elif dataset_type == "SDFTFDataset":
+        dataset = SDFTFDataset(cfg['data'][mode], mode, transform=transforms_)
     else:
         raise Exception("Unknown requested dataset type: %s" % dataset_type)
 
