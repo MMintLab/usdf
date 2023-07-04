@@ -24,7 +24,7 @@ training:
     latent: 1e-3
   sdf_clip: 0.1
   epochs: 100000
-  epochs_per_save: 100
+  epochs_per_save: 5
   epochs_per_validation: 100
   loss_weights:
     sdf_loss: 1.0
