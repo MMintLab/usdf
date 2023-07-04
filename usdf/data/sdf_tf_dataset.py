@@ -74,7 +74,7 @@ class SDFTFDataset(torch.utils.data.Dataset):
 
         data_dict = {
             "example_idx": example_idx,
-            "mesh_idx": mesh_idx,
+            "object_idx": mesh_idx,
             "transform_idx": transform_idx,
             "query_points": query_points,
             "sdf": sdf,
