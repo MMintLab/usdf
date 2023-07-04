@@ -7,11 +7,12 @@ import usdf.loss as usdf_loss
 
 class DeepSDF(nn.Module):
 
-    def __init__(self, num_examples: int, z_object_size: int, use_angle: bool, device=None):
+    def __init__(self, num_examples: int, z_object_size: int, use_angle: bool, use_pose_code: bool, device=None):
         super().__init__()
         self.z_object_size = z_object_size
         self.device = device
         self.use_angle = use_angle
+        self.use_pose_code = use_pose_code
 
         # Setup the DeepSDF module.
         self.object_model = meta_modules.virdo_hypernet(
@@ -21,19 +22,32 @@ class DeepSDF(nn.Module):
         ).to(self.device)
 
         # Setup latent embeddings (used during training).
-        if not self.use_angle:
+        if not self.use_angle and not self.use_pose_code:
             self.object_code = nn.Embedding(num_examples, self.z_object_size, dtype=torch.float32).requires_grad_(
                 True).to(
                 self.device)
             nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
+        elif not self.use_angle and self.use_pose_code:
+            self.object_code = nn.Embedding(num_examples, self.z_object_size // 2, dtype=torch.float32).requires_grad_(
+                True).to(
+                self.device)
+            self.pose_code = nn.Embedding(num_examples, self.z_object_size // 2, dtype=torch.float32).requires_grad_(
+                True).to(
+                self.device)
+            nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
+            nn.init.normal_(self.pose_code.weight, mean=0.0, std=0.1)
 
-    def encode_example(self, example_idx: torch.Tensor, angle: torch.Tensor):
+    def encode_example(self, example_idx: torch.Tensor, object_idx: torch.Tensor, angle: torch.Tensor):
         if self.use_angle:
             embed = angle
             embed = embed.unsqueeze(-1)
 
             # Sinusoidal embedding.
             embed = torch.cat([torch.sin(embed), torch.cos(embed)], dim=-1)
+        elif self.use_pose_code:
+            object_code = self.object_code(object_idx)
+            pose_code = self.pose_code(example_idx)
+            embed = torch.cat([object_code, pose_code], dim=-1)
         else:
             embed = self.object_code(example_idx)
 

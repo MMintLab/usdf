@@ -5,8 +5,9 @@ from usdf.deepsdf.training import Trainer
 
 def get_model(cfg, dataset, device=None):
     use_angle = cfg["model"].get("use_angle", False)
+    use_pose_code = cfg["model"].get("use_pose_code", False)
     deep_sdf = DeepSDF(len(dataset), cfg["model"]["z_object_size"], use_angle=use_angle,
-                       device=device)
+                       use_pose_code=use_pose_code, device=device)
     return deep_sdf
 
 
