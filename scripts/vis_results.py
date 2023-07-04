@@ -1,5 +1,7 @@
 import argparse
 
+import torch
+
 import trimesh
 from tqdm import trange
 from vedo import Plotter, Mesh, Points
@@ -19,23 +21,23 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
     gt_meshes = load_gt_results(dataset, dataset_cfg, num_examples)
 
     # Load predicted information.
-    pred_meshes, pred_slices, _ = load_pred_results(gen_dir, num_examples)
+    predictions = load_pred_results(gen_dir, num_examples)
 
-    for idx in trange(offset, len(dataset)):
+    for idx, (gt_mesh, prediction) in enumerate(zip(gt_meshes, predictions)):
         data_dict = dataset[idx]
 
         # pc = data_dict["partial_pointcloud"]
 
         plt = Plotter(shape=(1, 2))
         plt.at(0).show(
-            Mesh([gt_meshes[idx].vertices, gt_meshes[idx].faces]),
+            Mesh([gt_mesh.vertices, gt_mesh.faces]),
             # Points(pc, c="b"),
             "Ground Truth"
         )
 
-        pred_mesh = pred_meshes[idx]
+        pred_mesh, _, _ = prediction
         if type(pred_mesh) == trimesh.Trimesh:
-            plt.at(1).show(Mesh([pred_meshes[idx].vertices, pred_meshes[idx].faces]),
+            plt.at(1).show(Mesh([pred_mesh.vertices, pred_mesh.faces]),
                            "Predicted")  # , Points(pc, c="b"))
         elif type(pred_mesh) == dict:
             vertex_uncertainty = pred_mesh["uncertainty"]

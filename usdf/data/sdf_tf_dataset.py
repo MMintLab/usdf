@@ -1,4 +1,5 @@
 import os
+from multiprocessing import Pool
 
 import numpy as np
 import torch.utils.data
@@ -9,6 +10,20 @@ import mmint_utils
 from vedo import Plotter, Points, Mesh
 
 from usdf.utils import vedo_utils, utils
+
+
+class MeshDataLoader:
+
+    def __init__(self, sdfs_dir):
+        self.sdfs_dir = sdfs_dir
+
+    def __call__(self, partial_mesh_name):
+        example_sdf_dir = os.path.join(self.sdfs_dir, partial_mesh_name)
+
+        sdf_fn = os.path.join(example_sdf_dir, "sdf_data.pkl.gzip")
+        sdf_data = mmint_utils.load_gzip_pickle(sdf_fn)
+
+        return sdf_data["query_points"], sdf_data["sdf_values"]
 
 
 class SDFTFDataset(torch.utils.data.Dataset):
@@ -36,16 +51,16 @@ class SDFTFDataset(torch.utils.data.Dataset):
         self.sdf = []  # SDF values at query points.
 
         # Load data.
-        for mesh_idx, partial_mesh_name in enumerate(self.meshes):
-            example_sdf_dir = os.path.join(sdfs_dir, partial_mesh_name)
+        load_mesh_data = MeshDataLoader(sdfs_dir)
+        with Pool(16) as p:
+            results = p.map(load_mesh_data, self.meshes)
 
-            sdf_fn = os.path.join(example_sdf_dir, "sdf_data.pkl.gzip")
-            sdf_data = mmint_utils.load_gzip_pickle(sdf_fn)
-
-            # Append to data arrays.
+        # Append to data arrays.
+        for mesh_idx, result in enumerate(results):
+            query_points, sdf = result
             self.mesh_idcs.append(mesh_idx)
-            self.query_points.append(sdf_data["query_points"])
-            self.sdf.append(sdf_data["sdf_values"])
+            self.query_points.append(query_points)
+            self.sdf.append(sdf)
 
         # Load transformations.
         tfs_fn = os.path.join(self.dataset_dir, "transforms.pkl.gzip")
@@ -89,7 +104,7 @@ class SDFTFDataset(torch.utils.data.Dataset):
 
     def visualize_item(self, data_dict: dict):
         # Load mesh for this example.
-        mesh_name = self.meshes[data_dict["mesh_idx"]]
+        mesh_name = self.meshes[data_dict["object_idx"]]
         mesh_fn = os.path.join(self.meshes_dir, mesh_name + ".obj")
         rot_mesh = trimesh.load(mesh_fn)
         rot_mesh.apply_transform(data_dict["object_pose"])
