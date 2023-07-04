@@ -11,7 +11,7 @@ data:
     balance_semantics: False
     off_surface_sigma_a: 0.05
     off_surface_sigma_b: 0.015811388300841896
-    N_transforms: 10
+    N_transforms: 20
     translation_bound: [ 0.1, 0.1, 0.1 ]
     scale_bounds: [ 0.6, 1.4 ]
     splits:
