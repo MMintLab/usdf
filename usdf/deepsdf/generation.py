@@ -89,9 +89,7 @@ class Generator(BaseGenerator):
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
-            return torch.where(torch.norm(query_points, dim=-1) <= 1.1,
-                               self.model.forward(query_points.unsqueeze(0), latent)["sdf"][0],
-                               torch.tensor(1.1).to(self.device).float())
+            return self.model.forward(query_points.unsqueeze(0), latent)["sdf"][0]
 
         mesh = create_mesh(sdf_fn, n=self.mesh_resolution)
         return mesh, {"latent": latent}
