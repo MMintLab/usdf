@@ -82,7 +82,7 @@ class SDFDataset(torch.utils.data.Dataset):
 
         data_dict = {
             "example_idx": self.example_idcs[index],
-            "mesh_idx": np.array([self.mesh_idcs[index]]),
+            "object_idx": self.mesh_idcs[index],
             "object_pose": self.object_pose[index],
             "query_points": query_points,
             "sdf": sdf,

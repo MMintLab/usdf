@@ -35,9 +35,9 @@ def fit_tsne(model, out_dir: str):
 
 if __name__ == '__main__':
     parser = get_model_dataset_arg_parser()
-    parser.add_argument("--out", "-o", type=str, help="Optional out directory to write generated results to.")
+    parser.add_argument("out_dir", type=str, help="Out dir for TSNE results.")
     args = parser.parse_args()
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
 
-    fit_tsne(model_, args.out)
+    fit_tsne(model_, args.out_dir)
