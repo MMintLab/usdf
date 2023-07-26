@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 import yaml
-from vedo import Plotter, Video, Mesh
+from vedo import Plotter, Video, Mesh, settings
 import vedo.pyplot as plt
 
 from usdf import config
@@ -14,6 +14,7 @@ from usdf.utils.model_utils import load_generation_cfg
 def latent_interpolation(model_cfg, model, model_file, device, out_fn, gen_args: dict, tsne_dir):
     video_length = 5.0
     num_interpolations = 10
+    settings.immediate_rendering = False  # Faster for multi-renderers.
 
     model.eval()
 
@@ -32,10 +33,20 @@ def latent_interpolation(model_cfg, model, model_file, device, out_fn, gen_args:
     assert len(tsne_object_codes) == len(object_codes)
 
     # Visualize interpolation.
-    vedo_plot = Plotter(shape=(1, 2), sharecam=False)
+    plot_shape = [
+        dict(bottomleft=(0.0, 0.0), topright=(0.5, 1.0)),
+        dict(bottomleft=(0.5, 0.0), topright=(1.0, 1.0)),
+        dict(bottomleft=(0.49 - 0.15, 0.99 - 0.2), topright=(0.49, 0.99)),
+    ]
+    vedo_plot = Plotter(shape=plot_shape, sharecam=False, size=(1920, 1080))
     vedo_plot.at(0).camera.SetPosition(1.5, 1.5, 1.0)
     vedo_plot.at(0).camera.SetFocalPoint(0.0, 0.0, 0.0)
     vedo_plot.at(0).camera.SetViewUp(0.0, 0.0, 1.0)
+    vedo_plot.at(0).camera.SetClippingRange(0.01, 1000)
+    vedo_plot.at(2).camera.SetPosition(-1.5, -1.5, -1.0)
+    vedo_plot.at(2).camera.SetFocalPoint(0.0, 0.0, 0.0)
+    vedo_plot.at(2).camera.SetViewUp(0.0, 0.0, 1.0)
+    vedo_plot.at(2).camera.SetClippingRange(0.01, 1000)
 
     # Create plot of TSNE embeddings.
     tsne_plot = plt.plot(tsne_object_codes[:, 0], tsne_object_codes[:, 1], lw=0, marker=".", mc="blue", grid=False,
@@ -61,7 +72,7 @@ def latent_interpolation(model_cfg, model, model_file, device, out_fn, gen_args:
             vedo_plot.at(1).remove(interp_line)
         interp_line = plt.plot([tsne_object_codes[idx1, 0], tsne_object_codes[idx2, 0]],
                                [tsne_object_codes[idx1, 1], tsne_object_codes[idx2, 1]],
-                               like=tsne_plot, lw=1, marker="o", mc="red", grid=False, axes=False)
+                               like=tsne_plot, lw=3, marker="o", mc="red", grid=False, axes=False)
         vedo_plot.at(1).show(interp_line)
 
         for frame_idx in range(num_frames + 1):
@@ -82,8 +93,10 @@ def latent_interpolation(model_cfg, model, model_file, device, out_fn, gen_args:
             mesh, _ = generator.generate_mesh({}, {"latent": torch.from_numpy(interp_code).to(device).unsqueeze(0)})
             if vedo_mesh is not None:
                 vedo_plot.at(0).remove(vedo_mesh)
+                vedo_plot.at(2).remove(vedo_mesh)
             vedo_mesh = Mesh([mesh.vertices, mesh.faces])
             vedo_plot.at(0).show(vedo_mesh)
+            vedo_plot.at(2).show(vedo_mesh)
 
             # Add frame to video.
             video.add_frame()
