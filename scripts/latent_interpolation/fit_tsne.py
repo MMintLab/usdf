@@ -7,18 +7,19 @@ import mmint_utils
 from usdf.utils.args_utils import get_model_dataset_arg_parser, load_model_dataset_from_args
 
 
-def fit_tsne(model, out_dir: str):
+def fit_tsne(model, dataset, out_dir: str):
     """
     Fit a t-SNE model to the latent space of the given model.
 
     Args:
         model: DeepSDF model
+        dataset: training dataset
         out_dir: out directory
     """
     mmint_utils.make_dir(out_dir)
 
     # Load embedding(s) for model.
-    embeddings = [model.object_code.weight.detach().cpu().numpy()]
+    embeddings = [model.object_code.weight.detach().cpu().numpy()[:dataset.get_num_objects()]]
     out_files = [os.path.join(out_dir, "object_codes.npy")]
     if model.use_pose_code:
         embeddings.append(model.pose_code.weight.detach().cpu().numpy())
@@ -40,4 +41,4 @@ if __name__ == '__main__':
 
     model_cfg_, model_, dataset_, device_ = load_model_dataset_from_args(args)
 
-    fit_tsne(model_, args.out_dir)
+    fit_tsne(model_, dataset_, args.out_dir)

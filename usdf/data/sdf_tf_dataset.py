@@ -35,6 +35,7 @@ class SDFTFDataset(torch.utils.data.Dataset):
         self.dataset_dir = dataset_cfg["dataset_dir"]
         self.N_sdf = dataset_cfg["N_sdf"]
         self.N_pc = dataset_cfg.get("N_pc", 10000)
+        self.N_transforms = dataset_cfg.get("N_transforms", 1)  # Per mesh.
         self.has_point_clouds = dataset_cfg.get("has_point_clouds", False)
         self.balance_semantics = dataset_cfg.get("balance_semantics", False)
         partials_dir = os.path.join(self.dataset_dir, "partials")
@@ -65,6 +66,9 @@ class SDFTFDataset(torch.utils.data.Dataset):
         # Load transformations.
         tfs_fn = os.path.join(self.dataset_dir, "transforms.pkl.gzip")
         self.transforms = mmint_utils.load_gzip_pickle(tfs_fn)
+
+    def get_num_objects(self):
+        return len(self.meshes)
 
     def __len__(self):
         return len(self.transforms)

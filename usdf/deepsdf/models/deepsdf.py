@@ -28,6 +28,7 @@ class DeepSDF(nn.Module):
                 self.device)
             nn.init.normal_(self.object_code.weight, mean=0.0, std=0.1)
         elif not self.use_angle and self.use_pose_code:
+            # TODO: num_examples should be num_objects.
             self.object_code = nn.Embedding(num_examples, self.z_object_size // 2, dtype=torch.float32).requires_grad_(
                 True).to(
                 self.device)

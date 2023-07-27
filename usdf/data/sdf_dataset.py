@@ -70,6 +70,9 @@ class SDFDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.example_idcs)
 
+    def get_num_objects(self):
+        return len(self.meshes)
+
     def __getitem__(self, index: int):
         # Balance number of positive and negative samples in query points.
         query_points = self.query_points[index]
