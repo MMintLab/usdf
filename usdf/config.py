@@ -3,12 +3,10 @@ from torchvision import transforms
 from usdf.data.sdf_dataset import SDFDataset
 from usdf.data.sdf_tf_dataset import SDFTFDataset
 from usdf.data.uncertainty_dataset import UncertaintyDataset
-import usdf.usdf as usdf_model
 import usdf.deepsdf as deepsdf
 
 method_dict = {
-    'usdf': usdf_model,
-    'deepsdf': deepsdf
+    'deepsdf': deepsdf,
 }
 
 
