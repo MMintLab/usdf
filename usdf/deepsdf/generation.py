@@ -14,10 +14,6 @@ def get_surface_loss_fn(embed_weight: float):
         surface_coords_ = torch.from_numpy(data_dict["partial_pointcloud"]).to(device).float().unsqueeze(0)
         surface_coords_ = surface_coords_.repeat(latent.shape[0], 1, 1)
 
-        # If we are using the angle as the input, we must apply the sinusoidal embedding.
-        if model.use_angle:
-            latent = torch.cat([torch.sin(latent), torch.cos(latent)], dim=-1)
-
         # Predict with updated latents.
         pred_dict_ = model.forward(surface_coords_, latent)
 
@@ -37,12 +33,6 @@ def get_init_function(init_mode: str = "random"):
     if init_mode == "random":
         def init_function(embedding: nn.Embedding, device=None):
             torch.nn.init.normal_(embedding.weight, mean=0.0, std=0.1)
-
-        return init_function
-    elif init_mode == "1d_interpolation":
-        def init_function(embedding: nn.Embedding, device=None):
-            embedding.weight.data = torch.arange(0.0, 2 * np.pi, 2 * np.pi / embedding.weight.shape[0],
-                                                 device=device, requires_grad=True).unsqueeze(-1)
 
         return init_function
 

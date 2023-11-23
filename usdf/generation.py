@@ -16,15 +16,15 @@ class BaseGenerator(object):
         self.device = device
         self.generation_cfg = generation_cfg
 
-        self.generates_mesh = False
-        self.generates_pointcloud = False
-        self.generates_slice = False
-
     def generate_mesh(self, data, metadata):
+        """
+        Generate a single reconstruction (as mesh) from the given data and metadata.
+        """
         raise NotImplementedError()
 
-    def generate_pointcloud(self, data, metadata):
-        raise NotImplementedError()
-
-    def generate_slice(self, data, metadata):
+    def generate_mesh_set(self, data, metadata):
+        """
+        Generate a set of reconstructions (as meshes) where each mesh should represent a plausible
+        reconstruction of the given data.
+        """
         raise NotImplementedError()
