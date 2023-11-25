@@ -65,11 +65,12 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
             mesh_partials_path = os.path.join(partials_dir, mesh_fn[:-4])
             mmint_utils.make_dir(mesh_partials_path)
 
-            for angle_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N_angles + 1)[:-1]):
-                object_to_world_tf = pk.RotateAxisAngle(angle, "Z", dtype=dtype, degrees=False)
+            for tf_idx, angle in enumerate(np.linspace(0, 2 * np.pi, N_angles + 1)[:-1]):
+                # TODO: Option to do completely random rotations.
+                w_T_o_tf = pk.RotateAxisAngle(angle, "Z", dtype=dtype, degrees=False)
                 # object_pose = np.eye(4)
                 # object_pose[:3, :3] = tf3d.euler.euler2mat(0, 0, angle, axes="sxyz")
-                scene.set_pose(mesh_node, object_to_world_tf.get_matrix().cpu().numpy()[0])
+                scene.set_pose(mesh_node, w_T_o_tf.get_matrix().cpu().numpy()[0])
 
                 # Render the scene.
                 color, depth = r.render(scene)
@@ -79,35 +80,39 @@ def render_dataset(dataset_cfg: dict, split: str, vis: bool = False):
                 pointcloud = utils.transform_pointcloud(pointcloud, camera_pose)
 
                 # Recover free points.
-                # free_pointcloud_camera = depth_to_free_points(depth, yfov, max_depth=3.0, n=200)[:, :3]
-                # free_pointcloud_world = camera_to_world_tf.transform_points(
-                #     torch.tensor(free_pointcloud_camera, dtype=dtype))
+                free_pointcloud_camera = depth_to_free_points(depth, yfov, max_depth=3.0, n=200)[:, :3]
+                free_pointcloud_world = camera_to_world_tf.transform_points(
+                    torch.tensor(free_pointcloud_camera, dtype=dtype))
 
-                # world_to_object_tf = object_to_world_tf.inverse()
-                # free_pointcloud_obj = world_to_object_tf.transform_points(free_pointcloud_world).cpu().numpy()
-                # sdn = obj.object_frame_closest_point(free_pointcloud_obj).distance
+                # Downsample free points.
+                # First, remove points far from object.
+                free_pointcloud_world = free_pointcloud_world[
+                    np.linalg.norm(free_pointcloud_world, axis=1) < 1.05
+                    ]
 
-                # free_pointcloud_world = free_pointcloud_world[sdn > free_space_surface_epsilon]
-                # free_pointcloud_world = free_pointcloud_world.cpu().numpy()
+                # Next, voxel downsample.
+                free_pointcloud_world = pv.voxel_down_sample(free_pointcloud_world, 0.02)
 
                 if vis:
-                    mesh_tri_rot = mesh_tri.copy().apply_transform(object_to_world_tf.get_matrix().cpu().numpy()[0])
+                    mesh_tri_rot = mesh_tri.copy().apply_transform(w_T_o_tf.get_matrix().cpu().numpy()[0])
 
                     plt = Plotter()
                     plt.at(0).show(
                         Points(pointcloud[:, :3], c="green"),
                         Mesh([mesh_tri_rot.vertices, mesh_tri_rot.faces], alpha=0.5),
                         vedo_utils.draw_origin(0.1),
-                        # Points(free_pointcloud_world[:, :3], c="blue", alpha=1.0)
+                        Points(free_pointcloud_world[:, :3], c="blue", alpha=0.01)
                     )
+                    plt.close()
 
                 # Save partials.
-                mesh_partials_angle_path = os.path.join(mesh_partials_path, "angle_%d" % angle_idx)
+                mesh_partials_angle_path = os.path.join(mesh_partials_path, "tf_%d" % tf_idx)
                 mmint_utils.make_dir(mesh_partials_angle_path)
                 utils.save_pointcloud(pointcloud, os.path.join(mesh_partials_angle_path, "pointcloud.ply"))
-                # utils.save_pointcloud(free_pointcloud_world,
-                #                       os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
-                mmint_utils.save_gzip_pickle({"angle": angle}, os.path.join(mesh_partials_angle_path, "info.pkl.gzip"))
+                utils.save_pointcloud(free_pointcloud_world,
+                                      os.path.join(mesh_partials_angle_path, "free_pointcloud.ply"))
+                mmint_utils.save_gzip_pickle({"w_T_o": w_T_o_tf.get_matrix()},
+                                             os.path.join(mesh_partials_angle_path, "info.pkl.gzip"))
 
                 pbar.update(1)
 

@@ -13,7 +13,7 @@ if __name__ == '__main__':
     meshes_dir = args.meshes_dir
     dataset_dir = args.dataset_dir
     mmint_utils.make_dir(dataset_dir)
-    splits_dir = os.path.join(dataset_dir, "splits")
+    splits_dir = os.path.join(meshes_dir, "splits")
     mmint_utils.make_dir(splits_dir)
 
     mesh_fns = [f for f in os.listdir(meshes_dir) if ".obj" in f]

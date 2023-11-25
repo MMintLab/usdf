@@ -1,0 +1,9 @@
+data:
+  test:
+    dataset: SDFDataset
+    meshes_dir: out/meshes/shapenet/mugs_proc/
+    dataset_dir: out/datasets/generative/test/test_mugs_v1/
+    N_angles: 16
+    splits:
+      train: train.txt
+      test: test.txt
