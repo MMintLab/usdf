@@ -10,6 +10,7 @@ from tqdm import trange
 
 def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Callable, latent_size: int,
                               num_examples: int, num_latent: int, data_dict: dict,
+                              vis_fn: Callable = None,
                               inf_params=None, device: torch.device = None, verbose: bool = False):
     """
     Helper with basic inference by optimization structure. Repeatedly calls loss function with the specified
@@ -23,6 +24,7 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
         num_examples (int): number of examples to run inference on.
         num_latent (int): number of latents to generate per example.
         data_dict (dict): data dictionary for example(s) we are inferring for.
+        vis_fn (Callable): visualization function.
         inf_params (dict): inference hyper-parameters.
         device (torch.device): pytorch device.
         verbose (bool): be verbose.
@@ -60,6 +62,9 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
 
         # Store latent history.
         z_history.append(z.detach().cpu().numpy().copy())
+
+        if vis_fn is not None:
+            vis_fn(z)
 
         loss, loss_ind = loss_fn(model, z, data_dict, device)
 

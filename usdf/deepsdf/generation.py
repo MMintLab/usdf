@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 from torch import nn
+from vedo import Plotter, Mesh, Points
+
 import pytorch_kinematics as pk
 
 from usdf.generation import BaseGenerator
@@ -56,16 +58,20 @@ def get_surface_loss_fn(embed_weight: float, alpha: float, infer_pose: bool):
 def get_init_function(data, init_mode: str = "random", infer_pose: bool = True):
     # Use partial pointcloud mean to initialize pose.
     if infer_pose:
-        pos = data["surface_pointcloud"].mean(axis=0)
+        pos = torch.zeros(3)
+        # pos = -data["surface_pointcloud"].mean(axis=0)
 
     if init_mode == "random":
         def init_function(num_examples: int, num_latent: int, latent_size: int, device=None):
             embed_weight = torch.zeros([num_examples, num_latent, latent_size], dtype=torch.float32, device=device)
 
             if infer_pose:
+                # rot_batch = pk.matrix_to_rotation_6d(
+                #     pk.random_rotations(num_examples * num_latent, requires_grad=True)).to(device).reshape(
+                #     [num_examples, num_latent, 6])
                 rot_batch = pk.matrix_to_rotation_6d(
-                    pk.random_rotations(num_examples * num_latent, requires_grad=True)).to(device).reshape(
-                    [num_examples, num_latent, 6])
+                    torch.tile(torch.eye(3), (num_examples * num_latent, 1, 1))
+                ).to(device).reshape([num_examples, num_latent, 6])
                 pos_batch = torch.from_numpy(np.tile(pos, (num_examples, num_latent, 1))).to(device).float()
                 pose = torch.cat([pos_batch, rot_batch], dim=-1).requires_grad_(True)
                 embed_weight[..., :9] = pose
@@ -76,6 +82,21 @@ def get_init_function(data, init_mode: str = "random", infer_pose: bool = True):
             return embed_weight
 
         return init_function
+
+
+def get_vis_function(generator, data):
+    def vis_function(latent):
+        mesh, _ = generator.generate_mesh_from_latent(latent[0])
+
+        plt = Plotter(shape=(1, 1))
+        plt.at(0).show(
+            Mesh([mesh.vertices, mesh.faces]),
+            Points(data["surface_pointcloud"], c="b"),
+            Points(data["free_pointcloud"], c="r", alpha=0.05),
+        )
+        plt.close()
+
+    return vis_function
 
 
 class Generator(BaseGenerator):
@@ -89,7 +110,7 @@ class Generator(BaseGenerator):
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         self.infer_pose = generation_cfg.get("infer_pose", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
-        self.embed_weight = generation_cfg.get("embed_weight", 0.0)
+        self.embed_weight = generation_cfg.get("embed_weight", 10.0)
         self.num_latent = generation_cfg.get("num_latent", 1)
         self.init_mode = generation_cfg.get("init_mode", "random")
         self.iter_limit = generation_cfg.get("iter_limit", 1500)
@@ -99,7 +120,7 @@ class Generator(BaseGenerator):
         latent_metadata = {}
         if self.gen_from_known_latent:
             latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
-                                               torch.tensor([data["object_idx"]]).to(self.device), None)
+                                               torch.tensor([data["mesh_idx"]]).to(self.device), None)
         else:
             latent, latent_metadata = inference_by_optimization(
                 self.model,
@@ -111,6 +132,7 @@ class Generator(BaseGenerator):
                 1,
                 self.num_latent,
                 data,
+                # vis_fn=get_vis_function(self, data),
                 inf_params={"iter_limit": self.iter_limit},
                 device=self.device,
                 verbose=True
@@ -125,6 +147,10 @@ class Generator(BaseGenerator):
         # Generate a single latent code for the given data.
         latent, _ = self.generate_latent(data, True)
 
+        # Generate mesh from latent code.
+        return self.generate_mesh_from_latent(latent)
+
+    def generate_mesh_from_latent(self, latent):
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
             query_points = query_points.unsqueeze(0)
