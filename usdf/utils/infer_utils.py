@@ -36,12 +36,15 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
     num_steps = inf_params.get("iter_limit", 300)
 
     # Initialize latent code.
-    z_ = nn.Embedding(num_examples, num_latent, latent_size, dtype=torch.float32).requires_grad_(True).to(device)
-    init_fn(z_, device)  # Call provided init function.
+    z_init_weights = init_fn(num_examples, num_latent, latent_size, device)  # Call provided init function.
+    z_ = nn.Embedding(num_examples * num_latent, latent_size, dtype=torch.float32)
+    z_.weight = nn.Parameter(z_init_weights.reshape([num_examples * num_latent, latent_size]))
+    z_.requires_grad_(True).to(device)
+
     optimizer = optim.Adam(z_.parameters(), lr=lr)
 
     # Start optimization procedure.
-    z = z_.weight
+    z = z_.weight.reshape([num_examples, num_latent, latent_size])
 
     # Store history of latents/loss.
     z_history = []
@@ -75,5 +78,6 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
     z_history.append(z.detach().cpu().numpy().copy())
     loss_history.append(final_loss.detach().cpu().numpy().copy())
 
-    return z_, {"final_loss": final_loss, "iters": iter_idx + 1,
-                "z_history": z_history, "loss_history": loss_history}
+    results_z = z_.weight.reshape([num_examples, num_latent, latent_size])
+    return results_z, {"final_loss": final_loss, "iters": iter_idx + 1,
+                       "z_history": z_history, "loss_history": loss_history}

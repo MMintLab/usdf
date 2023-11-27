@@ -1,5 +1,6 @@
 from torchvision import transforms
 
+from usdf.data.render_dataset import RenderDataset
 from usdf.data.sdf_dataset import SDFDataset
 from usdf.data.sdf_tf_dataset import SDFTFDataset
 import usdf.deepsdf as deepsdf
@@ -65,6 +66,8 @@ def get_dataset(mode, cfg):
         dataset = SDFDataset(cfg['data'][mode], mode, transform=transforms_)
     elif dataset_type == "SDFTFDataset":
         dataset = SDFTFDataset(cfg['data'][mode], mode, transform=transforms_)
+    elif dataset_type == "RenderDataset":
+        dataset = RenderDataset(cfg['data'][mode], mode, transform=transforms_)
     else:
         raise Exception("Unknown requested dataset type: %s" % dataset_type)
 

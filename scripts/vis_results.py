@@ -39,19 +39,6 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
         if type(pred_mesh) == trimesh.Trimesh:
             plt.at(1).show(Mesh([pred_mesh.vertices, pred_mesh.faces]),
                            "Predicted")  # , Points(pc, c="b"))
-        elif type(pred_mesh) == dict:
-            vertex_uncertainty = pred_mesh["uncertainty"]
-
-            # Convert vertex uncertainty to color using jet colormap.
-            jet = mpl.colormaps.get_cmap('jet')
-            cNorm = mpl.colors.Normalize(vmin=vertex_uncertainty.min(), vmax=vertex_uncertainty.max())
-            scalarMap = mpl.cm.ScalarMappable(norm=cNorm, cmap=jet)
-            vertex_colors = (scalarMap.to_rgba(vertex_uncertainty) * 255).astype("uint8")
-
-            mesh = Mesh([pred_mesh["vertices"], pred_mesh["faces"]])
-            mesh.pointcolors = vertex_colors
-
-            plt.at(1).show(mesh, "Predicted")
         else:
             raise ValueError("Unknown mesh type.")
 

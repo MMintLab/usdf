@@ -16,6 +16,9 @@ class BaseGenerator(object):
         self.device = device
         self.generation_cfg = generation_cfg
 
+        self.generates_mesh = False
+        self.generates_mesh_set = False
+
     def generate_mesh(self, data, metadata):
         """
         Generate a single reconstruction (as mesh) from the given data and metadata.
