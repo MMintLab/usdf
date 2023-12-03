@@ -96,17 +96,18 @@ class Generator(BaseGenerator):
                                   device=self.device) * 0.1
 
         pos = torch.zeros(3)
+        # rot_batch = pk.matrix_to_rotation_6d(
+        #     torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
+        # ).to(self.device).reshape([num_examples, self.num_latent, 6])
         rot_batch = pk.matrix_to_rotation_6d(
-            torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
-        ).to(self.device).reshape([num_examples, self.num_latent, 6])
+            pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
+            [num_examples, self.num_latent, 6])
         pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
-        pose_init = torch.cat([pos_batch, rot_batch], dim=-1).requires_grad_(True)
+        pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
 
         return latent_init, pose_init
 
     def inference_loss(self, latent, pose, surface_pointcloud, free_pointcloud):
-        device = self.device
-
         # Pull out pose.
         pos = pose[..., :3]
         rot_6d = pose[..., 3:]
