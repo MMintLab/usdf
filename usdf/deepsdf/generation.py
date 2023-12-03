@@ -112,10 +112,9 @@ class Generator(BaseGenerator):
         pos = pose[..., :3]
         rot_6d = pose[..., 3:]
         rot = pk.rotation_6d_to_matrix(rot_6d)
-
         # Transform points.
-        surface_pointcloud_tf = (rot @ surface_pointcloud.transpose(3, 2)).transpose(2, 3) + pos
-        free_pointcloud_tf = (rot @ free_pointcloud.transpose(3, 2)).transpose(2, 3) + pos
+        surface_pointcloud_tf = torch.einsum("...kj,...ij->...ki", surface_pointcloud, rot) + pos.unsqueeze(-2) # (..., N, 3)
+        free_pointcloud_tf = torch.einsum("...kj,...ij->...ki", free_pointcloud, rot) + pos.unsqueeze(-2)  # (..., N, 3)
 
         # Predict with updated latents.
         surface_pred_dict = self.model.forward(surface_pointcloud_tf, latent)
