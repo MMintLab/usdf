@@ -24,24 +24,24 @@ class Generator(BaseGenerator):
         self.infer_pose = generation_cfg.get("infer_pose", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
         self.embed_weight = generation_cfg.get("embed_weight", 10.0)
-        self.num_latent = generation_cfg.get("num_latent", 1)
+        self.num_latent = generation_cfg.get("num_latent", 8)
         self.init_mode = generation_cfg.get("init_mode", "random")
-        self.iter_limit = generation_cfg.get("iter_limit", 300)
+        self.iter_limit = generation_cfg.get("iter_limit", 1000)
         self.alpha = generation_cfg.get("alpha", -0.01)
-        self.vis_every = generation_cfg.get("vis_every", 100)
+        self.vis_every = generation_cfg.get("vis_every", 250)
 
     def generate_latent(self, data, return_single: bool = False):
         latent_metadata = {}
         if self.gen_from_known_latent:
             latent = self.model.encode_example(torch.tensor([data["example_idx"]]).to(self.device),
-                                               torch.tensor([data["mesh_idx"]]).to(self.device), None)
+                                               torch.tensor([data["mesh_idx"]]).to(self.device), None)[0]
             pose = None
         else:
             latent, pose, latent_metadata = self.infer_latent(data, num_examples=1)
 
             if return_single:
-                latent = latent[0, torch.argmin(latent_metadata["final_loss"][0])].unsqueeze(0)
-                pose = pose[0, torch.argmin(latent_metadata["final_loss"][0])].unsqueeze(0)
+                latent = latent[0, torch.argmin(latent_metadata["final_loss"][0])]
+                pose = pose[0, torch.argmin(latent_metadata["final_loss"][0])]
 
         return (latent, pose), latent_metadata
 
@@ -122,11 +122,12 @@ class Generator(BaseGenerator):
         free_pred_dict = self.model.forward(free_pointcloud_tf, latent)
 
         # Loss: all points on surface should have SDF = 0.0.
-        surface_loss = torch.sum(torch.abs(surface_pred_dict["sdf"]), dim=-1)
+        surface_loss = torch.mean(
+            torch.max(torch.zeros_like(surface_pred_dict["sdf"]), self.alpha + surface_pred_dict["sdf"]), dim=-1)
 
         # Loss: all points in free space should have SDF > alpha.
-        free_loss = torch.sum(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
-                              dim=-1)
+        free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
+                               dim=-1)
 
         # Latent embedding loss: shouldn't drift too far from data.
         embedding_loss = usdf_losses.l2_loss(latent, squared=True, reduce=False)
@@ -135,15 +136,23 @@ class Generator(BaseGenerator):
         return loss.mean(), loss
 
     def vis_function(self, latent, pose, data_dict):
-        mesh, _ = self.generate_mesh_from_latent(latent[0], pose[0])
+        meshes = []
+        for mesh_idx in range(self.num_latent):
+            mesh, _ = self.generate_mesh_from_latent(latent[0, mesh_idx], pose[0, mesh_idx])
+            meshes.append(mesh)
 
-        plt = Plotter(shape=(1, 1))
-        plt.at(0).show(
-            Mesh([mesh.vertices, mesh.faces]),
-            Points(data_dict["surface_pointcloud"], c="b"),
-            Points(data_dict["free_pointcloud"], c="r", alpha=0.05),
-        )
-        plt.close()
+        plot_shape = int(np.ceil(np.sqrt(self.num_latent)))
+        plt = Plotter(shape=(plot_shape, plot_shape))
+        for mesh_idx in range(self.num_latent):
+            mesh = meshes[mesh_idx]
+            plot_x = mesh_idx // plot_shape
+            plot_y = mesh_idx % plot_shape
+            plt.at(plot_x, plot_y).show(
+                Mesh([mesh.vertices, mesh.faces]),
+                Points(data_dict["surface_pointcloud"], c="b"),
+                Points(data_dict["free_pointcloud"], c="r", alpha=0.05),
+            )
+        plt.interactive().close()
 
     ####################################################################################################################
 
@@ -156,6 +165,9 @@ class Generator(BaseGenerator):
         return self.generate_mesh_from_latent(latent, pose)
 
     def generate_mesh_from_latent(self, latent, pose):
+        latent = latent.unsqueeze(0)
+        pose = pose.unsqueeze(0)
+
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):
             query_points = query_points.unsqueeze(0)
