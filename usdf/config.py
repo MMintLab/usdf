@@ -4,9 +4,11 @@ from usdf.data.render_dataset import RenderDataset
 from usdf.data.sdf_dataset import SDFDataset
 from usdf.data.sdf_tf_dataset import SDFTFDataset
 import usdf.deepsdf as deepsdf
+import usdf.svgd as svgd
 
 method_dict = {
     'deepsdf': deepsdf,
+    'svgd': svgd,
 }
 
 
