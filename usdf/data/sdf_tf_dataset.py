@@ -93,11 +93,11 @@ class SDFTFDataset(torch.utils.data.Dataset):
 
         data_dict = {
             "example_idx": example_idx,
-            "object_idx": mesh_idx,
+            "mesh_idx": mesh_idx,
             "transform_idx": transform_idx,
             "query_points": query_points,
             "sdf": sdf,
-            "object_pose": transform,
+            "mesh_pose": transform,
         }
 
         if self.has_point_clouds:
@@ -108,10 +108,10 @@ class SDFTFDataset(torch.utils.data.Dataset):
 
     def visualize_item(self, data_dict: dict):
         # Load mesh for this example.
-        mesh_name = self.meshes[data_dict["object_idx"]]
+        mesh_name = self.meshes[data_dict["mesh_idx"]]
         mesh_fn = os.path.join(self.meshes_dir, mesh_name + ".obj")
         rot_mesh = trimesh.load(mesh_fn)
-        rot_mesh.apply_transform(data_dict["object_pose"])
+        rot_mesh.apply_transform(data_dict["mesh_pose"])
 
         plt = Plotter((1, 2))
         plt.at(0).show(Mesh([rot_mesh.vertices, rot_mesh.faces], c="y"),

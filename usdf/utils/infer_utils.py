@@ -9,23 +9,25 @@ from tqdm import trange
 
 
 def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Callable, latent_size: int,
-                              num_latent: int, data_dict: dict,
+                              num_examples: int, num_latent: int, data_dict: dict,
+                              vis_fn: Callable = None,
                               inf_params=None, device: torch.device = None, verbose: bool = False):
     """
     Helper with basic inference by optimization structure. Repeatedly calls loss function with the specified
     data/loss function and updates latent inputs accordingly.
 
     Args:
-    - model (nn.Module): network model
-    - loss_fn (Callable): loss function. Should take in model, current latent, data dictionary, and device and return loss.
-    - init_fn (Callable): initialization function. Should init the given embedding.
-    - latent_size (int): specify latent space size.
-    - num_examples (int): number of examples to run inference on.
-    - data_dict (dict): data dictionary for example(s) we are inferring for.
-    - inf_params (dict): inference hyper-parameters.
-    - device (torch.device): pytorch device.
-    - epsilon (float): convergence threshold.
-    - verbose (bool): be verbose.
+        model (nn.Module): network model
+        loss_fn (Callable): loss function. Should take in model, current latent, data dictionary, and device and return loss.
+        init_fn (Callable): initialization function. Should init the given embedding.
+        latent_size (int): specify latent space size.
+        num_examples (int): number of examples to run inference on.
+        num_latent (int): number of latents to generate per example.
+        data_dict (dict): data dictionary for example(s) we are inferring for.
+        vis_fn (Callable): visualization function.
+        inf_params (dict): inference hyper-parameters.
+        device (torch.device): pytorch device.
+        verbose (bool): be verbose.
     """
     if inf_params is None:
         inf_params = {}
@@ -35,13 +37,16 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
     lr = inf_params.get("lr", 3e-2)
     num_steps = inf_params.get("iter_limit", 300)
 
-    # Initialize latent code as noise.
-    z_ = nn.Embedding(num_latent, latent_size, dtype=torch.float32).requires_grad_(True).to(device)
-    init_fn(z_, device)  # Call provided init function.
+    # Initialize latent code.
+    z_init_weights = init_fn(num_examples, num_latent, latent_size, device)  # Call provided init function.
+    z_ = nn.Embedding(num_examples * num_latent, latent_size, dtype=torch.float32)
+    z_.weight = nn.Parameter(z_init_weights.reshape([num_examples * num_latent, latent_size]))
+    z_.requires_grad_(True).to(device)
+
     optimizer = optim.Adam(z_.parameters(), lr=lr)
 
     # Start optimization procedure.
-    z = z_.weight
+    z = z_.weight.reshape([num_examples, num_latent, latent_size])
 
     # Store history of latents/loss.
     z_history = []
@@ -57,6 +62,9 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
 
         # Store latent history.
         z_history.append(z.detach().cpu().numpy().copy())
+
+        if vis_fn is not None:
+            vis_fn(z)
 
         loss, loss_ind = loss_fn(model, z, data_dict, device)
 
@@ -75,5 +83,6 @@ def inference_by_optimization(model: nn.Module, loss_fn: Callable, init_fn: Call
     z_history.append(z.detach().cpu().numpy().copy())
     loss_history.append(final_loss.detach().cpu().numpy().copy())
 
-    return z_, {"final_loss": final_loss, "iters": iter_idx + 1,
-                "z_history": z_history, "loss_history": loss_history}
+    results_z = z_.weight.reshape([num_examples, num_latent, latent_size])
+    return results_z, {"final_loss": final_loss, "iters": iter_idx + 1,
+                       "z_history": z_history, "loss_history": loss_history}

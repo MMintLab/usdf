@@ -9,7 +9,7 @@ import mmint_utils
 from usdf.utils import utils
 
 
-def write_results(out_dir, mesh, pointcloud, slice_, metadata, idx):
+def write_results(out_dir, mesh, metadata, idx):
     if mesh is not None:
         if type(mesh) == trimesh.Trimesh:
             mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -17,14 +17,6 @@ def write_results(out_dir, mesh, pointcloud, slice_, metadata, idx):
         elif type(mesh) == dict:
             mesh_fn = os.path.join(out_dir, "mesh_%d.pkl.gzip" % idx)
             mmint_utils.save_gzip_pickle(mesh, mesh_fn)
-
-    if pointcloud is not None:
-        pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
-        utils.save_pointcloud(pointcloud, pc_fn)
-
-    if slice_ is not None:
-        slice_fn = os.path.join(out_dir, "slice_%d.pkl.gzip" % idx)
-        mmint_utils.save_gzip_pickle(slice_, slice_fn)
 
     if metadata is not None:
         metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
@@ -50,23 +42,12 @@ class PredResultsLoader:
         elif os.path.exists(mesh_dict_fn):
             mesh = mmint_utils.load_gzip_pickle(mesh_dict_fn)
 
-        # pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
-        # if os.path.exists(pc_fn):
-        #     pointclouds.append(torch.from_numpy(utils.load_pointcloud(pc_fn)).to(device))
-        # else:
-        #     pointclouds.append(None)
-
-        slice_fn = os.path.join(self.out_dir, "slice_%d.pkl.gzip" % idx)
-        slice_ = None
-        if os.path.exists(slice_fn):
-            slice_ = mmint_utils.load_gzip_pickle(slice_fn)
-
         metadata_fn = os.path.join(self.out_dir, "metadata_%d.pkl.gzip" % idx)
         metadata = None
         if os.path.exists(metadata_fn):
             metadata = mmint_utils.load_gzip_pickle(metadata_fn)
 
-        return mesh, slice_, metadata
+        return mesh, metadata
 
 
 def load_pred_results_all(out_dir, n, device=None):
@@ -100,23 +81,12 @@ def load_pred_results(out_dir, n, device=None):
         elif os.path.exists(mesh_dict_fn):
             mesh = mmint_utils.load_gzip_pickle(mesh_dict_fn)
 
-        # pc_fn = os.path.join(out_dir, "pointcloud_%d.ply" % idx)
-        # if os.path.exists(pc_fn):
-        #     pointclouds.append(torch.from_numpy(utils.load_pointcloud(pc_fn)).to(device))
-        # else:
-        #     pointclouds.append(None)
-
-        slice_fn = os.path.join(out_dir, "slice_%d.pkl.gzip" % idx)
-        slice_ = None
-        if os.path.exists(slice_fn):
-            slice_ = mmint_utils.load_gzip_pickle(slice_fn)
-
         metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
         metadata = None
         if os.path.exists(metadata_fn):
             metadata = mmint_utils.load_gzip_pickle(metadata_fn)
 
-        yield mesh, slice_, metadata
+        yield mesh, metadata
 
 
 # Ground Truth Results
@@ -142,7 +112,7 @@ def load_gt_results_all(dataset, dataset_cfg, n, device=None):
     inputs = []
     for i in trange(n):
         data_dict = dataset[i]
-        inputs.append((dataset.meshes[data_dict["object_idx"]], data_dict["object_pose"]))
+        inputs.append((dataset.meshes[data_dict["mesh_idx"]], data_dict["mesh_pose"]))
 
     torch.multiprocessing.set_start_method('spawn', force=True)
     with Pool(16) as p:
@@ -159,10 +129,10 @@ def load_gt_results(dataset, dataset_cfg, n, device=None):
     for idx in range(n):
         data_dict = dataset[idx]
 
-        mesh_fn = os.path.join(meshes_dir, dataset.meshes[data_dict["object_idx"]] + ".obj")
+        mesh_fn = os.path.join(meshes_dir, dataset.meshes[data_dict["mesh_idx"]] + ".obj")
         example_mesh = trimesh.load(mesh_fn)
 
-        object_pose = data_dict["object_pose"]
+        object_pose = data_dict["mesh_pose"]
         example_mesh.apply_transform(object_pose)
 
         yield example_mesh

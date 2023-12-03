@@ -85,8 +85,8 @@ class SDFDataset(torch.utils.data.Dataset):
 
         data_dict = {
             "example_idx": self.example_idcs[index],
-            "object_idx": self.mesh_idcs[index],
-            "object_pose": self.object_pose[index],
+            "mesh_idx": self.mesh_idcs[index],
+            "mesh_pose": self.object_pose[index],
             "query_points": query_points,
             "sdf": sdf,
             "angle": self.angle[index],
@@ -106,10 +106,10 @@ class SDFDataset(torch.utils.data.Dataset):
 
     def visualize_item(self, data_dict: dict):
         # Load mesh for this example.
-        mesh_name = self.meshes[data_dict["example_idx"] // self.N_angles]
+        mesh_name = self.meshes[data_dict["mesh_idx"] // self.N_angles]
         mesh_fn = os.path.join(self.meshes_dir, mesh_name + ".obj")
         rot_mesh = trimesh.load(mesh_fn)
-        rot_mesh.apply_transform(data_dict["object_pose"])
+        rot_mesh.apply_transform(data_dict["mesh_pose"])
 
         plt = Plotter((1, 2))
         plt.at(0).show(Mesh([rot_mesh.vertices, rot_mesh.faces], c="y"),
