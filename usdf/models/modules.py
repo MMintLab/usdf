@@ -300,7 +300,7 @@ class SingleBVPNet(MetaModule):
             coords_org = model_input["coords"]
             input = model_input["model_out"]
         else:
-            coords_org = model_input["coords"].clone().detach().requires_grad_(True)
+            coords_org = model_input["coords"]  # .clone().detach().requires_grad_(True)
             input = coords_org
 
         ## When it has two or more layers
