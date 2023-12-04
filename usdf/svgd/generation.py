@@ -40,25 +40,27 @@ class Generator(DeepSDFGenerator):
         free_pointcloud = free_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
         free_pointcloud.requires_grad = True
 
-        opt = torch.optim.Adam([latent, pose], lr=3e-2)
-
-
+        X = torch.cat([latent, pose], dim=-1)  # (..., latent_size + pose_size)
+        X = torch.flatten(X, end_dim=-2)  # (B, latent_size + pose_size)
+        X = X.detach().requires_grad_(True)
+        opt = torch.optim.Adam([X], lr=3e-4)
         kernel = RBF()
-        cost_prob = CostProbWrapper(self.inference_loss, surface_pointcloud, free_pointcloud, latent_size=latent.shape[-1])
+        cost_prob = CostProbWrapper(self.inference_loss, surface_pointcloud, free_pointcloud,
+                                    latent_size=latent.shape[-1])
         svgd = SVGD(cost_prob, kernel, opt)
 
         iter_idx = 0
         range_ = trange(self.iter_limit)
-        X = torch.cat([latent, pose], dim=-1) # (..., latent_size + pose_size)
-        X = torch.flatten(X, end_dim=-2) # (B, latent_size + pose_size)
         for iter_idx in range_:
             if iter_idx % self.vis_every == 0:
+                latent, pose = cost_prob._split_X(X)
                 self.vis_function(latent, pose, data_dict)
 
             svgd.step(X)
 
             range_.set_postfix(loss=cost_prob.loss_value.item())
 
+        latent, pose = cost_prob._split_X(X)
         _, final_loss = self.inference_loss(latent, pose, surface_pointcloud, free_pointcloud)
 
         return latent, pose, {"final_loss": final_loss, "iters": iter_idx + 1}
