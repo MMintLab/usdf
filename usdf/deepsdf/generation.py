@@ -24,12 +24,16 @@ class Generator(BaseGenerator):
         self.infer_pose = generation_cfg.get("infer_pose", False)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
         self.embed_weight = generation_cfg.get("embed_weight", 0.01)
-        self.num_latent = generation_cfg.get("num_latent", 8)
+        self.num_latent = generation_cfg.get("num_latent", 16)
         self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
         self.init_mode = generation_cfg.get("init_mode", "random")
-        self.iter_limit = generation_cfg.get("iter_limit", 1000)
+        self.outer_iter_limit = generation_cfg.get("outer_iter_limit", 10)
+        self.iter_limit = generation_cfg.get("iter_limit", 500)
         self.alpha = generation_cfg.get("alpha", -0.01)
         self.vis_every = generation_cfg.get("vis_every", 250)
+        self.num_perturb = generation_cfg.get("num_perturb", 8)
+        self.pos_sigma = generation_cfg.get("pos_sigma", 0.04)
+        self.rot_sigma = generation_cfg.get("rot_sigma", 0.3)
 
     def generate_latent(self, data, return_single: bool = False):
         latent_metadata = {}
@@ -54,26 +58,92 @@ class Generator(BaseGenerator):
     ####################################################################################################################
 
     def infer_latent(self, data_dict, num_examples=1):
-        latent, pose = self.init_latent(num_examples)
-
-        # Set up as parameters for opt.
-        latent.requires_grad = True
-        pose.requires_grad = True
-
         # Full point cloud.
         full_pointcloud = torch.from_numpy(data_dict["full_pointcloud"]).to(self.device).float().unsqueeze(0)
-        full_pointcloud = full_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
+        full_pointcloud = full_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
         full_pointcloud.requires_grad = True
 
         # Surface point cloud.
         surface_pointcloud = torch.from_numpy(data_dict["surface_pointcloud"]).to(self.device).float().unsqueeze(0)
-        surface_pointcloud = surface_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
+        surface_pointcloud = surface_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
         surface_pointcloud.requires_grad = True
 
         # Free point cloud.
         free_pointcloud = torch.from_numpy(data_dict["free_pointcloud"]).to(self.device).float().unsqueeze(0)
-        free_pointcloud = free_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
+        free_pointcloud = free_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
         free_pointcloud.requires_grad = True
+
+        latent, pose = self.init_latent(num_examples)
+
+        res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                      full_pointcloud)
+        res_loss = metadata["final_loss"]
+
+        for iter_idx in range(self.outer_iter_limit):
+            final_loss_sorted, indices = torch.sort(res_loss[0], descending=False)
+
+            # Sort by loss.
+            latent = res_latent[:, indices]
+            pose = res_pose[:, indices]
+
+            self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
+
+            # Choose the best result and create perturbations around it.
+            best_latent = latent[:, 0:1]
+            best_latent = best_latent.repeat(1, self.num_perturb, 1)
+            best_pose = pose[:, 0:1]
+            best_pose = best_pose.repeat(1, self.num_perturb, 1)
+
+            # Update latents/poses.
+            latent[:, self.num_latent - self.num_perturb:] = best_latent
+            pose[:, self.num_latent - self.num_perturb:] = best_pose
+
+            # Calculate perturbations across ALL values..
+            delta_pos = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32,
+                                    device=self.device) * self.pos_sigma
+            delta_theta = torch.randn([num_examples, self.num_latent], dtype=torch.float32,
+                                      device=self.device) * self.rot_sigma
+            rand_dir = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32, device=self.device)
+            rand_dir = rand_dir / torch.norm(rand_dir, dim=-1, keepdim=True)
+            delta_rot = pk.axis_and_angle_to_matrix_33(rand_dir, delta_theta)
+
+            # Combine with best result from previous iteration.
+            pos = pose[:, :, :3]
+            rot_6d = pose[:, :, 3:]
+            rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
+            new_rot_matrix = delta_rot @ rot_matrix
+            new_rot_6d = pk.matrix_to_rotation_6d(new_rot_matrix)
+            new_pos = pos + delta_pos
+            new_pose = torch.cat([new_pos, new_rot_6d], dim=-1)
+
+            # TODO: Add offsets to latent code?
+            new_latent = latent
+
+            self.vis_function(new_latent, new_pose, data_dict)
+
+            latent, pose, metadata = self.run_sgd(new_latent, new_pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                  full_pointcloud)
+            final_loss = metadata["final_loss"]
+
+            # Get best num_latent from current best and new results.
+            latent = torch.cat([latent, res_latent], dim=1)
+            pose = torch.cat([pose, res_pose], dim=1)
+            final_loss = torch.cat([final_loss, res_loss], dim=1)
+
+            final_loss_sorted, indices = torch.sort(final_loss[0], descending=False)
+            res_latent = latent[:, indices[:self.num_latent]]
+            res_pose = pose[:, indices[:self.num_latent]]
+            res_loss = final_loss[:, indices[:self.num_latent]]
+
+        return res_latent, res_pose, {"final_loss": res_loss}
+
+    def run_sgd(self, latent, pose, data_dict, surface_pointcloud, free_pointcloud, full_pointcloud):
+        latent = latent.detach()
+        pose = pose.detach()
+
+        # Set up as parameters for opt.
+        latent.requires_grad = True
+        pose.requires_grad = True
 
         if self.infer_pose:
             opt = torch.optim.Adam([latent, pose], lr=3e-2)
@@ -164,7 +234,7 @@ class Generator(BaseGenerator):
         loss = surface_loss + free_loss + self.embed_weight * embedding_loss
         return loss.mean(), loss
 
-    def vis_function(self, latent, pose, data_dict):
+    def vis_function(self, latent, pose, data_dict, final_loss=None):
         meshes = []
         for mesh_idx in range(self.num_latent):
             mesh, _ = self.generate_mesh_from_latent(latent[0, mesh_idx], pose[0, mesh_idx])
@@ -177,6 +247,7 @@ class Generator(BaseGenerator):
             plot_x = mesh_idx // plot_shape
             plot_y = mesh_idx % plot_shape
             plt.at(plot_x, plot_y).show(
+                f"Mesh {mesh_idx}: Loss: {final_loss[mesh_idx].item():.4f}" if final_loss is not None else f"Mesh {mesh_idx}",
                 Mesh([mesh.vertices, mesh.faces]),
                 Points(data_dict["full_pointcloud"] if self.use_full_pointcloud else data_dict["surface_pointcloud"],
                        c="b"),
