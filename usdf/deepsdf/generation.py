@@ -12,6 +12,18 @@ from usdf.utils.marching_cubes import create_mesh
 import usdf.loss as usdf_losses
 
 
+def z_rot_to_matrix(rot_z_theta):
+    size = np.array(list(rot_z_theta.shape) + [3, 3])
+    size[:-2] = 1
+    rot = torch.zeros_like(rot_z_theta).unsqueeze(-1).unsqueeze(-1).repeat(*size)
+    rot[..., 0, 0] = torch.cos(rot_z_theta)
+    rot[..., 0, 1] = -torch.sin(rot_z_theta)
+    rot[..., 1, 0] = torch.sin(rot_z_theta)
+    rot[..., 1, 1] = torch.cos(rot_z_theta)
+    rot[..., 2, 2] = 1.0
+    return rot
+
+
 class Generator(BaseGenerator):
 
     def __init__(self, cfg: dict, model: nn.Module, generation_cfg: dict, device: torch.device = None):
@@ -21,16 +33,18 @@ class Generator(BaseGenerator):
         self.generates_mesh_set = True
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
-        self.infer_pose = generation_cfg.get("infer_pose", False)
+        self.infer_pose = generation_cfg.get("infer_pose", True)
+        self.pose_z_rot_only = generation_cfg.get("pose_z_rot_only", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
         self.embed_weight = generation_cfg.get("embed_weight", 0.01)
+        self.free_weight = generation_cfg.get("free_weight", 100.0)
         self.num_latent = generation_cfg.get("num_latent", 16)
         self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
         self.init_mode = generation_cfg.get("init_mode", "random")
-        self.outer_iter_limit = generation_cfg.get("outer_iter_limit", 10)
+        self.outer_iter_limit = generation_cfg.get("outer_iter_limit", 5)
         self.iter_limit = generation_cfg.get("iter_limit", 500)
-        self.alpha = generation_cfg.get("alpha", -0.01)
         self.vis_every = generation_cfg.get("vis_every", 250)
+        self.vis_inter = generation_cfg.get("vis_inter", False)
         self.num_perturb = generation_cfg.get("num_perturb", 8)
         self.pos_sigma = generation_cfg.get("pos_sigma", 0.04)
         self.rot_sigma = generation_cfg.get("rot_sigma", 0.3)
@@ -86,7 +100,8 @@ class Generator(BaseGenerator):
             latent = res_latent[:, indices]
             pose = res_pose[:, indices]
 
-            self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
+            if self.vis_inter:
+                self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
 
             # Choose the best result and create perturbations around it.
             best_latent = latent[:, 0:1]
@@ -109,17 +124,25 @@ class Generator(BaseGenerator):
 
             # Combine with best result from previous iteration.
             pos = pose[:, :, :3]
-            rot_6d = pose[:, :, 3:]
-            rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
+            if self.pose_z_rot_only:
+                rot_z_theta = pose[..., 3]
+                rot_matrix = z_rot_to_matrix(rot_z_theta)
+            else:
+                rot_6d = pose[:, :, 3:]
+                rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
             new_rot_matrix = delta_rot @ rot_matrix
-            new_rot_6d = pk.matrix_to_rotation_6d(new_rot_matrix)
+            if self.pose_z_rot_only:
+                new_rot_theta = torch.atan2(new_rot_matrix[..., 1, 0], new_rot_matrix[..., 0, 0]).unsqueeze(-1)
+            else:
+                new_rot_theta = pk.matrix_to_rotation_6d(new_rot_matrix)
             new_pos = pos + delta_pos
-            new_pose = torch.cat([new_pos, new_rot_6d], dim=-1)
+            new_pose = torch.cat([new_pos, new_rot_theta], dim=-1)
 
             # TODO: Add offsets to latent code?
             new_latent = latent
 
-            self.vis_function(new_latent, new_pose, data_dict)
+            if self.vis_inter:
+                self.vis_function(new_latent, new_pose, data_dict)
 
             latent, pose, metadata = self.run_sgd(new_latent, new_pose, data_dict, surface_pointcloud, free_pointcloud,
                                                   full_pointcloud)
@@ -179,16 +202,20 @@ class Generator(BaseGenerator):
         # torch.nn.init.normal_(latent_init[..., 9:], mean=0.0, std=0.1)
         # latent_init = self.model.object_code.weight[0].unsqueeze(0).repeat(num_examples, self.num_latent, 1)
         latent_init = torch.randn([num_examples, self.num_latent, self.model.z_object_size], dtype=torch.float32,
-                                  device=self.device) * 0.
+                                  device=self.device) * 0.1
 
         pos = torch.zeros(3)
         if self.infer_pose:
             # rot_batch = pk.matrix_to_rotation_6d(
             #     torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
             # ).to(self.device).reshape([num_examples, self.num_latent, 6])
-            rot_batch = pk.matrix_to_rotation_6d(
-                pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
-                [num_examples, self.num_latent, 6])
+            if self.pose_z_rot_only:
+                rot_batch = torch.rand([num_examples, self.num_latent, 1], dtype=torch.float32,
+                                       device=self.device) * 2 * np.pi
+            else:
+                rot_batch = pk.matrix_to_rotation_6d(
+                    pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
+                    [num_examples, self.num_latent, 6])
             pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
             pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
         else:
@@ -203,8 +230,12 @@ class Generator(BaseGenerator):
     def inference_loss(self, latent, pose, surface_pointcloud, free_pointcloud):
         # Pull out pose.
         pos = pose[..., :3]
-        rot_6d = pose[..., 3:]
-        rot = pk.rotation_6d_to_matrix(rot_6d)
+        if self.pose_z_rot_only:
+            rot_z_theta = pose[..., 3]
+            rot = z_rot_to_matrix(rot_z_theta)
+        else:
+            rot_6d = pose[..., 3:]
+            rot = pk.rotation_6d_to_matrix(rot_6d)
 
         # Transform points.
         surface_pointcloud_tf = ((rot @ surface_pointcloud.transpose(3, 2)).transpose(2, 3) +
@@ -224,14 +255,14 @@ class Generator(BaseGenerator):
         # surface_loss = torch.mean(
         #     torch.max(torch.zeros_like(surface_pred_dict["sdf"]), self.alpha + surface_pred_dict["sdf"]), dim=-1)
 
-        # Loss: all points in free space should have SDF > alpha.
-        free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
+        # Loss: all points in free space should have SDF > 0.0.
+        free_loss = torch.mean(torch.abs(torch.min(torch.zeros_like(free_pred_dict["sdf"]), free_pred_dict["sdf"])),
                                dim=-1)
 
         # Latent embedding loss: shouldn't drift too far from data.
         embedding_loss = usdf_losses.l2_loss(latent, squared=True, reduce=False)
 
-        loss = surface_loss + free_loss + self.embed_weight * embedding_loss
+        loss = surface_loss + self.free_weight * free_loss + self.embed_weight * embedding_loss
         return loss.mean(), loss
 
     def vis_function(self, latent, pose, data_dict, final_loss=None):
@@ -277,8 +308,12 @@ class Generator(BaseGenerator):
             if pose is not None:
                 # Pull out pose.
                 pos = pose[..., :3]
-                rot_6d = pose[..., 3:]
-                rot = pk.rotation_6d_to_matrix(rot_6d)
+                if self.pose_z_rot_only:
+                    rot_z_theta = pose[..., 3]
+                    rot = z_rot_to_matrix(rot_z_theta)
+                else:
+                    rot_6d = pose[..., 3:]
+                    rot = pk.rotation_6d_to_matrix(rot_6d)
 
                 # Transform points.
                 query_points = (rot @ query_points.transpose(1, 2)).transpose(2, 1) + pos
