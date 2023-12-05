@@ -36,7 +36,7 @@ class Generator(BaseGenerator):
         self.infer_pose = generation_cfg.get("infer_pose", True)
         self.pose_z_rot_only = generation_cfg.get("pose_z_rot_only", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
-        self.embed_weight = generation_cfg.get("embed_weight", 0.01)
+        self.embed_weight = generation_cfg.get("embed_weight", 1.0)
         self.free_weight = generation_cfg.get("free_weight", 100.0)
         self.num_latent = generation_cfg.get("num_latent", 16)
         self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
@@ -89,74 +89,80 @@ class Generator(BaseGenerator):
 
         latent, pose = self.init_latent(num_examples)
 
-        res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+        if self.infer_pose:
+            res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                          full_pointcloud)
+            res_loss = metadata["final_loss"]
+
+            for iter_idx in range(self.outer_iter_limit):
+                final_loss_sorted, indices = torch.sort(res_loss[0], descending=False)
+
+                # Sort by loss.
+                latent = res_latent[:, indices]
+                pose = res_pose[:, indices]
+
+                if self.vis_inter:
+                    self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
+
+                # Choose the best result and create perturbations around it.
+                best_latent = latent[:, 0:1]
+                best_latent = best_latent.repeat(1, self.num_perturb, 1)
+                best_pose = pose[:, 0:1]
+                best_pose = best_pose.repeat(1, self.num_perturb, 1)
+
+                # Update latents/poses.
+                latent[:, self.num_latent - self.num_perturb:] = best_latent
+                pose[:, self.num_latent - self.num_perturb:] = best_pose
+
+                # Calculate perturbations across ALL values..
+                delta_pos = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32,
+                                        device=self.device) * self.pos_sigma
+                delta_theta = torch.randn([num_examples, self.num_latent], dtype=torch.float32,
+                                          device=self.device) * self.rot_sigma
+                rand_dir = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32, device=self.device)
+                rand_dir = rand_dir / torch.norm(rand_dir, dim=-1, keepdim=True)
+                delta_rot = pk.axis_and_angle_to_matrix_33(rand_dir, delta_theta)
+
+                # Combine with best result from previous iteration.
+                pos = pose[:, :, :3]
+                if self.pose_z_rot_only:
+                    rot_z_theta = pose[..., 3]
+                    rot_matrix = z_rot_to_matrix(rot_z_theta)
+                else:
+                    rot_6d = pose[:, :, 3:]
+                    rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
+                new_rot_matrix = delta_rot @ rot_matrix
+                if self.pose_z_rot_only:
+                    new_rot_theta = torch.atan2(new_rot_matrix[..., 1, 0], new_rot_matrix[..., 0, 0]).unsqueeze(-1)
+                else:
+                    new_rot_theta = pk.matrix_to_rotation_6d(new_rot_matrix)
+                new_pos = pos + delta_pos
+                new_pose = torch.cat([new_pos, new_rot_theta], dim=-1)
+
+                # TODO: Add offsets to latent code?
+                new_latent = latent
+
+                if self.vis_inter:
+                    self.vis_function(new_latent, new_pose, data_dict)
+
+                latent, pose, metadata = self.run_sgd(new_latent, new_pose, data_dict, surface_pointcloud,
+                                                      free_pointcloud,
                                                       full_pointcloud)
-        res_loss = metadata["final_loss"]
+                final_loss = metadata["final_loss"]
 
-        for iter_idx in range(self.outer_iter_limit):
-            final_loss_sorted, indices = torch.sort(res_loss[0], descending=False)
+                # Get best num_latent from current best and new results.
+                latent = torch.cat([latent, res_latent], dim=1)
+                pose = torch.cat([pose, res_pose], dim=1)
+                final_loss = torch.cat([final_loss, res_loss], dim=1)
 
-            # Sort by loss.
-            latent = res_latent[:, indices]
-            pose = res_pose[:, indices]
-
-            if self.vis_inter:
-                self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
-
-            # Choose the best result and create perturbations around it.
-            best_latent = latent[:, 0:1]
-            best_latent = best_latent.repeat(1, self.num_perturb, 1)
-            best_pose = pose[:, 0:1]
-            best_pose = best_pose.repeat(1, self.num_perturb, 1)
-
-            # Update latents/poses.
-            latent[:, self.num_latent - self.num_perturb:] = best_latent
-            pose[:, self.num_latent - self.num_perturb:] = best_pose
-
-            # Calculate perturbations across ALL values..
-            delta_pos = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32,
-                                    device=self.device) * self.pos_sigma
-            delta_theta = torch.randn([num_examples, self.num_latent], dtype=torch.float32,
-                                      device=self.device) * self.rot_sigma
-            rand_dir = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32, device=self.device)
-            rand_dir = rand_dir / torch.norm(rand_dir, dim=-1, keepdim=True)
-            delta_rot = pk.axis_and_angle_to_matrix_33(rand_dir, delta_theta)
-
-            # Combine with best result from previous iteration.
-            pos = pose[:, :, :3]
-            if self.pose_z_rot_only:
-                rot_z_theta = pose[..., 3]
-                rot_matrix = z_rot_to_matrix(rot_z_theta)
-            else:
-                rot_6d = pose[:, :, 3:]
-                rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
-            new_rot_matrix = delta_rot @ rot_matrix
-            if self.pose_z_rot_only:
-                new_rot_theta = torch.atan2(new_rot_matrix[..., 1, 0], new_rot_matrix[..., 0, 0]).unsqueeze(-1)
-            else:
-                new_rot_theta = pk.matrix_to_rotation_6d(new_rot_matrix)
-            new_pos = pos + delta_pos
-            new_pose = torch.cat([new_pos, new_rot_theta], dim=-1)
-
-            # TODO: Add offsets to latent code?
-            new_latent = latent
-
-            if self.vis_inter:
-                self.vis_function(new_latent, new_pose, data_dict)
-
-            latent, pose, metadata = self.run_sgd(new_latent, new_pose, data_dict, surface_pointcloud, free_pointcloud,
-                                                  full_pointcloud)
-            final_loss = metadata["final_loss"]
-
-            # Get best num_latent from current best and new results.
-            latent = torch.cat([latent, res_latent], dim=1)
-            pose = torch.cat([pose, res_pose], dim=1)
-            final_loss = torch.cat([final_loss, res_loss], dim=1)
-
-            final_loss_sorted, indices = torch.sort(final_loss[0], descending=False)
-            res_latent = latent[:, indices[:self.num_latent]]
-            res_pose = pose[:, indices[:self.num_latent]]
-            res_loss = final_loss[:, indices[:self.num_latent]]
+                final_loss_sorted, indices = torch.sort(final_loss[0], descending=False)
+                res_latent = latent[:, indices[:self.num_latent]]
+                res_pose = pose[:, indices[:self.num_latent]]
+                res_loss = final_loss[:, indices[:self.num_latent]]
+        else:
+            res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                          full_pointcloud)
+            res_loss = metadata["final_loss"]
 
         return res_latent, res_pose, {"final_loss": res_loss}
 
