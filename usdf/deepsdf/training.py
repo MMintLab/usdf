@@ -90,7 +90,7 @@ class Trainer(BaseTrainer):
 
     def compute_train_loss(self, data, it):
         example_idx = data["example_idx"].to(self.device)
-        object_idx = data["object_idx"].to(self.device)
+        object_idx = data["mesh_idx"].to(self.device)
         query_points = data["query_points"].to(self.device).float()
         sdf_labels = data["sdf"].to(self.device).float()
 
