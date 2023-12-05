@@ -12,7 +12,7 @@ from usdf.utils.model_utils import load_generation_cfg
 from tqdm import trange, tqdm
 
 from usdf.utils.results_utils import write_results, load_gt_results
-from usdf.visualize import visualize_mesh
+from usdf.visualize import visualize_mesh, visualize_mesh_set
 
 
 def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: dict, vis: bool = False,
@@ -46,6 +46,7 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
         data_dict = dataset[idx]
         metadata = {}
         mesh = None
+        mesh_set = None
 
         if generate_mesh:
             mesh, metadata_mesh = generator.generate_mesh(data_dict, metadata)
@@ -54,7 +55,14 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
             if vis:
                 visualize_mesh(data_dict, mesh, gt_mesh)
 
-        write_results(out_dir, mesh, metadata, idx)
+        if generate_mesh_set:
+            mesh_set, metadata_mesh_set = generator.generate_mesh_set(data_dict, metadata)
+            metadata = mmint_utils.combine_dict(metadata, metadata_mesh_set)
+
+            if vis:
+                visualize_mesh_set(data_dict, mesh_set, gt_mesh, metadata_mesh_set)
+
+        write_results(out_dir, mesh, mesh_set, metadata, idx)
 
 
 if __name__ == '__main__':

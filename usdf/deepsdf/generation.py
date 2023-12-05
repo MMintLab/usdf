@@ -17,14 +17,14 @@ class Generator(BaseGenerator):
     def __init__(self, cfg: dict, model: nn.Module, generation_cfg: dict, device: torch.device = None):
         super().__init__(cfg, model, generation_cfg, device)
 
-        self.generates_mesh = True
-        self.generates_mesh_set = False
+        self.generates_mesh = False
+        self.generates_mesh_set = True
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
         self.infer_pose = generation_cfg.get("infer_pose", False)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
         self.embed_weight = generation_cfg.get("embed_weight", 0.01)
-        self.num_latent = generation_cfg.get("num_latent", 1)
+        self.num_latent = generation_cfg.get("num_latent", 8)
         self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
         self.init_mode = generation_cfg.get("init_mode", "random")
         self.iter_limit = generation_cfg.get("iter_limit", 1000)
@@ -43,6 +43,9 @@ class Generator(BaseGenerator):
             if return_single:
                 latent = latent[0, torch.argmin(latent_metadata["final_loss"][0])]
                 pose = pose[0, torch.argmin(latent_metadata["final_loss"][0])]
+            else:
+                latent = latent[0]
+                pose = pose[0]
 
         return (latent, pose), latent_metadata
 
@@ -134,12 +137,14 @@ class Generator(BaseGenerator):
         rot = pk.rotation_6d_to_matrix(rot_6d)
 
         # Transform points.
-        surface_pointcloud_tf = (rot @ surface_pointcloud.transpose(3, 2)).transpose(2, 3) + pos
-        free_pointcloud_tf = (rot @ free_pointcloud.transpose(3, 2)).transpose(2, 3) + pos
+        surface_pointcloud_tf = ((rot @ surface_pointcloud.transpose(3, 2)).transpose(2, 3) +
+                                 pos.unsqueeze(2).repeat(1, 1, surface_pointcloud.shape[2], 1))
+        free_pointcloud_tf = ((rot @ free_pointcloud.transpose(3, 2)).transpose(2, 3) +
+                              pos.unsqueeze(2).repeat(1, 1, free_pointcloud.shape[2], 1))
 
         # Predict with updated latents.
         surface_pred_dict = self.model.forward(surface_pointcloud_tf, latent)
-        # free_pred_dict = self.model.forward(free_pointcloud_tf, latent)
+        free_pred_dict = self.model.forward(free_pointcloud_tf, latent)
 
         # Loss: all points on surface should have SDF = 0.0.
         epsilon = 3.5e-4
@@ -150,13 +155,13 @@ class Generator(BaseGenerator):
         #     torch.max(torch.zeros_like(surface_pred_dict["sdf"]), self.alpha + surface_pred_dict["sdf"]), dim=-1)
 
         # Loss: all points in free space should have SDF > alpha.
-        # free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
-        #                        dim=-1)
+        free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
+                               dim=-1)
 
         # Latent embedding loss: shouldn't drift too far from data.
         embedding_loss = usdf_losses.l2_loss(latent, squared=True, reduce=False)
 
-        loss = surface_loss + self.embed_weight * embedding_loss
+        loss = surface_loss + free_loss + self.embed_weight * embedding_loss
         return loss.mean(), loss
 
     def vis_function(self, latent, pose, data_dict):
@@ -213,4 +218,14 @@ class Generator(BaseGenerator):
         return mesh, {"latent": latent, "pose": pose}
 
     def generate_mesh_set(self, data, metadata):
-        pass
+        # Generate a single latent code for the given data.
+        l, l_metadata = self.generate_latent(data, False)
+        latent, pose = l
+
+        # Generate meshes from latent code.
+        meshes = []
+        for mesh_idx in range(self.num_latent):
+            mesh, _ = self.generate_mesh_from_latent(latent[mesh_idx], pose[mesh_idx])
+            meshes.append(mesh)
+
+        return meshes, {"latent": latent, "pose": pose, "final_loss": l_metadata["final_loss"]}

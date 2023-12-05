@@ -9,7 +9,7 @@ import mmint_utils
 from usdf.utils import utils
 
 
-def write_results(out_dir, mesh, metadata, idx):
+def write_results(out_dir, mesh, mesh_set, metadata, idx):
     if mesh is not None:
         if type(mesh) == trimesh.Trimesh:
             mesh_fn = os.path.join(out_dir, "mesh_%d.obj" % idx)
@@ -17,6 +17,15 @@ def write_results(out_dir, mesh, metadata, idx):
         elif type(mesh) == dict:
             mesh_fn = os.path.join(out_dir, "mesh_%d.pkl.gzip" % idx)
             mmint_utils.save_gzip_pickle(mesh, mesh_fn)
+
+    if mesh_set is not None:
+        for i, mesh in enumerate(mesh_set):
+            if type(mesh) == trimesh.Trimesh:
+                mesh_fn = os.path.join(out_dir, "mesh_%d_%d.obj" % (idx, i))
+                mesh.export(mesh_fn)
+            elif type(mesh) == dict:
+                mesh_fn = os.path.join(out_dir, "mesh_%d_%d.pkl.gzip" % (idx, i))
+                mmint_utils.save_gzip_pickle(mesh, mesh_fn)
 
     if metadata is not None:
         metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
