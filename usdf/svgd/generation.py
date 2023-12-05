@@ -43,7 +43,7 @@ class Generator(DeepSDFGenerator):
         X = torch.cat([latent, pose], dim=-1)  # (..., latent_size + pose_size)
         X = torch.flatten(X, end_dim=-2)  # (B, latent_size + pose_size)
         X = X.detach().requires_grad_(True)
-        opt = torch.optim.Adam([X], lr=3e-4)
+        opt = torch.optim.Adam([X], lr=1e-3)
         kernel = RBF()
         cost_prob = CostProbWrapper(self.inference_loss, surface_pointcloud, free_pointcloud,
                                     latent_size=latent.shape[-1])
