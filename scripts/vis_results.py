@@ -9,6 +9,7 @@ import matplotlib as mpl
 
 from usdf.utils.model_utils import load_dataset_from_config
 from usdf.utils.results_utils import load_gt_results, load_pred_results
+from usdf.visualize import visualize_mesh, visualize_mesh_set
 
 
 def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int = 0):
@@ -26,23 +27,13 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
     for idx, (gt_mesh, prediction) in enumerate(zip(gt_meshes, predictions)):
         data_dict = dataset[idx]
 
-        # pc = data_dict["partial_pointcloud"]
+        pred_mesh, pred_mesh_set, pred_metadata = prediction
 
-        plt = Plotter(shape=(1, 2))
-        plt.at(0).show(
-            Mesh([gt_mesh.vertices, gt_mesh.faces]),
-            # Points(pc, c="b"),
-            "Ground Truth"
-        )
+        if pred_mesh is not None:
+            visualize_mesh(data_dict, pred_mesh, gt_mesh)
 
-        pred_mesh, _, _ = prediction
-        if type(pred_mesh) == trimesh.Trimesh:
-            plt.at(1).show(Mesh([pred_mesh.vertices, pred_mesh.faces]),
-                           "Predicted")  # , Points(pc, c="b"))
-        else:
-            raise ValueError("Unknown mesh type.")
-
-        plt.interactive().close()
+        if pred_mesh_set is not None:
+            visualize_mesh_set(data_dict, pred_mesh_set, gt_mesh, pred_metadata)
 
 
 if __name__ == "__main__":

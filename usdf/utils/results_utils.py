@@ -90,12 +90,31 @@ def load_pred_results(out_dir, n, device=None):
         elif os.path.exists(mesh_dict_fn):
             mesh = mmint_utils.load_gzip_pickle(mesh_dict_fn)
 
+        # Load mesh set.
+        mesh_set = []
+        mesh_set_idx = 0
+        mesh_set_fn = os.path.join(out_dir, "mesh_%d_%d.obj" % (idx, mesh_set_idx))
+        mesh_set_dict_fn = os.path.join(out_dir, "mesh_%d_%d.pkl.gzip" % (idx, mesh_set_idx))
+        while os.path.exists(mesh_set_fn) or os.path.exists(mesh_set_dict_fn):
+            mesh_set_mesh = None
+            if os.path.exists(mesh_set_fn):
+                try:
+                    mesh_set_mesh = trimesh.load(mesh_set_fn)
+                except:
+                    pass
+            elif os.path.exists(mesh_set_dict_fn):
+                mesh_set_mesh = mmint_utils.load_gzip_pickle(mesh_set_dict_fn)
+            mesh_set.append(mesh_set_mesh)
+            mesh_set_idx += 1
+            mesh_set_fn = os.path.join(out_dir, "mesh_%d_%d.obj" % (idx, mesh_set_idx))
+            mesh_set_dict_fn = os.path.join(out_dir, "mesh_%d_%d.pkl.gzip" % (idx, mesh_set_idx))
+
         metadata_fn = os.path.join(out_dir, "metadata_%d.pkl.gzip" % idx)
         metadata = None
         if os.path.exists(metadata_fn):
             metadata = mmint_utils.load_gzip_pickle(metadata_fn)
 
-        yield mesh, metadata
+        yield mesh, mesh_set, metadata
 
 
 # Ground Truth Results
