@@ -15,7 +15,7 @@ def minimal_matching_distance(A, B):
 
     chamfer_distances = []
     for i in range(M_2):
-        B_i = A[i].unsqueeze(0).repeat(M_1, 1, 1)
+        B_i = B[i].unsqueeze(0).repeat(M_1, 1, 1)
         cd_i = chamfer_distance(A, B_i)[0]
         chamfer_distances.append(cd_i)
     chamfer_distances = torch.stack(chamfer_distances, dim=0)

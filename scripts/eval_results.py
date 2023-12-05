@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-
+import numpy as np
 import trimesh
 from tqdm import trange
 from vedo import Plotter, Mesh, Points
@@ -28,12 +28,17 @@ def eval_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int
     for idx, (gt_mesh, prediction) in enumerate(zip(gt_meshes, predictions)):
         data_dict = dataset[idx]
         pred_mesh, pred_mesh_set, pred_metadata = prediction
-        import pdb; pdb.set_trace()
+        num_points = 5000
+        # sample pointclouds from the mesh using trimesh
+        pred_mesh_points = np.stack([np.asarray(trimesh.sample.sample_surface_even(msh,num_points)[0]) for msh in pred_mesh_set])
+        pred_mesh_points = torch.from_numpy(pred_mesh_points).float().cuda() # (num_meshes, num_points, 3)
+        gt_mesh_points = np.asarray(trimesh.sample.sample_surface_even(gt_mesh,num_points)[0])
+        gt_mesh_points = torch.from_numpy(gt_mesh_points).float().cuda().unsqueeze(0) # (1, num_points, 3)
         # compute the total matching distance
-        tmd = total_matching_distance(pred_mesh_set)
+        tmd = total_matching_distance(pred_mesh_points)
         print('tmd', tmd)
         # compute the minimal matching distance
-        mmd = minimal_matching_distance(pred_mesh_set, gt_mesh)
+        mmd = minimal_matching_distance(gt_mesh_points, pred_mesh_points)
         print('mmd', mmd)
 
 
