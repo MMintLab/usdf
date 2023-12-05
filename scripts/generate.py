@@ -60,7 +60,6 @@ def generate(model_cfg, model, model_file, dataset, device, out_dir, gen_args: d
 if __name__ == '__main__':
     parser = get_model_dataset_arg_parser()
     parser.add_argument("--out", "-o", type=str, help="Optional out directory to write generated results to.")
-    # TODO: Add visualization?
     parser.add_argument("--gen_args", type=yaml.safe_load, default=None, help="Generation args.")
     parser.add_argument("-v", "--vis", action="store_true", help="Visualize generated results.")
     args = parser.parse_args()

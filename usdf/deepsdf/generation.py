@@ -21,10 +21,11 @@ class Generator(BaseGenerator):
         self.generates_mesh_set = False
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
-        self.infer_pose = generation_cfg.get("infer_pose", True)
-        self.mesh_resolution = generation_cfg.get("mesh_resolution", 64)
-        self.embed_weight = generation_cfg.get("embed_weight", 10.0)
-        self.num_latent = generation_cfg.get("num_latent", 8)
+        self.infer_pose = generation_cfg.get("infer_pose", False)
+        self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
+        self.embed_weight = generation_cfg.get("embed_weight", 0.01)
+        self.num_latent = generation_cfg.get("num_latent", 1)
+        self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
         self.init_mode = generation_cfg.get("init_mode", "random")
         self.iter_limit = generation_cfg.get("iter_limit", 1000)
         self.alpha = generation_cfg.get("alpha", -0.01)
@@ -56,6 +57,11 @@ class Generator(BaseGenerator):
         latent.requires_grad = True
         pose.requires_grad = True
 
+        # Full point cloud.
+        full_pointcloud = torch.from_numpy(data_dict["full_pointcloud"]).to(self.device).float().unsqueeze(0)
+        full_pointcloud = full_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
+        full_pointcloud.requires_grad = True
+
         # Surface point cloud.
         surface_pointcloud = torch.from_numpy(data_dict["surface_pointcloud"]).to(self.device).float().unsqueeze(0)
         surface_pointcloud = surface_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
@@ -66,7 +72,10 @@ class Generator(BaseGenerator):
         free_pointcloud = free_pointcloud.repeat(latent.shape[0], latent.shape[1], 1, 1)
         free_pointcloud.requires_grad = True
 
-        opt = torch.optim.Adam([latent, pose], lr=3e-2)
+        if self.infer_pose:
+            opt = torch.optim.Adam([latent, pose], lr=3e-2)
+        else:
+            opt = torch.optim.Adam([latent], lr=3e-2)
 
         iter_idx = 0
         range_ = trange(self.iter_limit)
@@ -76,14 +85,18 @@ class Generator(BaseGenerator):
             if iter_idx % self.vis_every == 0:
                 self.vis_function(latent, pose, data_dict)
 
-            loss, loss_ind = self.inference_loss(latent, pose, surface_pointcloud, free_pointcloud)
+            loss, loss_ind = self.inference_loss(latent, pose,
+                                                 full_pointcloud if self.use_full_pointcloud else surface_pointcloud,
+                                                 free_pointcloud)
 
             loss.backward()
             opt.step()
 
             range_.set_postfix(loss=loss.item())
 
-        _, final_loss = self.inference_loss(latent, pose, surface_pointcloud, free_pointcloud)
+        _, final_loss = self.inference_loss(latent, pose,
+                                            full_pointcloud if self.use_full_pointcloud else surface_pointcloud,
+                                            free_pointcloud)
 
         return latent, pose, {"final_loss": final_loss, "iters": iter_idx + 1}
 
@@ -93,17 +106,24 @@ class Generator(BaseGenerator):
         # torch.nn.init.normal_(latent_init[..., 9:], mean=0.0, std=0.1)
         # latent_init = self.model.object_code.weight[0].unsqueeze(0).repeat(num_examples, self.num_latent, 1)
         latent_init = torch.randn([num_examples, self.num_latent, self.model.z_object_size], dtype=torch.float32,
-                                  device=self.device) * 0.1
+                                  device=self.device) * 0.
 
         pos = torch.zeros(3)
-        # rot_batch = pk.matrix_to_rotation_6d(
-        #     torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
-        # ).to(self.device).reshape([num_examples, self.num_latent, 6])
-        rot_batch = pk.matrix_to_rotation_6d(
-            pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
-            [num_examples, self.num_latent, 6])
-        pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
-        pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
+        if self.infer_pose:
+            # rot_batch = pk.matrix_to_rotation_6d(
+            #     torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
+            # ).to(self.device).reshape([num_examples, self.num_latent, 6])
+            rot_batch = pk.matrix_to_rotation_6d(
+                pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
+                [num_examples, self.num_latent, 6])
+            pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
+            pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
+        else:
+            rot_batch = pk.matrix_to_rotation_6d(
+                torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
+            ).to(self.device).reshape([num_examples, self.num_latent, 6])
+            pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
+            pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
 
         return latent_init, pose_init
 
@@ -119,20 +139,24 @@ class Generator(BaseGenerator):
 
         # Predict with updated latents.
         surface_pred_dict = self.model.forward(surface_pointcloud_tf, latent)
-        free_pred_dict = self.model.forward(free_pointcloud_tf, latent)
+        # free_pred_dict = self.model.forward(free_pointcloud_tf, latent)
 
         # Loss: all points on surface should have SDF = 0.0.
+        epsilon = 3.5e-4
         surface_loss = torch.mean(
-            torch.max(torch.zeros_like(surface_pred_dict["sdf"]), self.alpha + surface_pred_dict["sdf"]), dim=-1)
+            torch.max(torch.abs(surface_pred_dict["sdf"]) - epsilon, torch.zeros_like(surface_pred_dict["sdf"])),
+            dim=-1)
+        # surface_loss = torch.mean(
+        #     torch.max(torch.zeros_like(surface_pred_dict["sdf"]), self.alpha + surface_pred_dict["sdf"]), dim=-1)
 
         # Loss: all points in free space should have SDF > alpha.
-        free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
-                               dim=-1)
+        # free_loss = torch.mean(torch.max(torch.zeros_like(free_pred_dict["sdf"]), self.alpha - free_pred_dict["sdf"]),
+        #                        dim=-1)
 
         # Latent embedding loss: shouldn't drift too far from data.
         embedding_loss = usdf_losses.l2_loss(latent, squared=True, reduce=False)
 
-        loss = surface_loss + free_loss + self.embed_weight * embedding_loss
+        loss = surface_loss + self.embed_weight * embedding_loss
         return loss.mean(), loss
 
     def vis_function(self, latent, pose, data_dict):
@@ -149,7 +173,8 @@ class Generator(BaseGenerator):
             plot_y = mesh_idx % plot_shape
             plt.at(plot_x, plot_y).show(
                 Mesh([mesh.vertices, mesh.faces]),
-                Points(data_dict["surface_pointcloud"], c="b"),
+                Points(data_dict["full_pointcloud"] if self.use_full_pointcloud else data_dict["surface_pointcloud"],
+                       c="b"),
                 Points(data_dict["free_pointcloud"], c="r", alpha=0.05),
             )
         plt.interactive().close()
@@ -166,7 +191,8 @@ class Generator(BaseGenerator):
 
     def generate_mesh_from_latent(self, latent, pose):
         latent = latent.unsqueeze(0)
-        pose = pose.unsqueeze(0)
+        if pose is not None:
+            pose = pose.unsqueeze(0)
 
         # Setup function to map from query points to SDF values.
         def sdf_fn(query_points):

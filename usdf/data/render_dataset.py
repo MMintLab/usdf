@@ -31,6 +31,7 @@ class RenderDataset(torch.utils.data.Dataset):
         self.mesh_pose = []  # Mesh pose.
         self.surface_pointclouds = []  # Surface pointclouds.
         self.free_pointclouds = []  # Free pointclouds.
+        self.full_pointclouds = []  # Full pointclouds.
 
         # Load data.
         for mesh_idx, partial_mesh_name in enumerate(self.meshes):
@@ -52,6 +53,10 @@ class RenderDataset(torch.utils.data.Dataset):
                 free_pointcloud = utils.load_pointcloud(free_fn)
                 self.free_pointclouds.append(free_pointcloud)
 
+                full_fn = os.path.join(example_angle_partial_dir, "full_pointcloud.ply")
+                full_pointcloud = utils.load_pointcloud(full_fn)
+                self.full_pointclouds.append(full_pointcloud)
+
     def __len__(self):
         return len(self.surface_pointclouds)
 
@@ -69,6 +74,7 @@ class RenderDataset(torch.utils.data.Dataset):
             "mesh_pose": self.mesh_pose[index],
             "surface_pointcloud": surface_pointcloud,
             "free_pointcloud": free_pointcloud,
+            "full_pointcloud": self.full_pointclouds[index],
         }
 
     def visualize_item(self, data_dict: dict):
@@ -82,6 +88,7 @@ class RenderDataset(torch.utils.data.Dataset):
             Mesh([mesh_tri.vertices, mesh_tri.faces], c="grey"),
             Points(data_dict["surface_pointcloud"], c="green"),
             Points(data_dict["free_pointcloud"], c="blue", alpha=0.05),
+            Points(data_dict["full_pointcloud"], c="purple"),
             vedo_utils.draw_origin(0.1),
         )
         plt.close()
