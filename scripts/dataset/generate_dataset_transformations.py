@@ -2,21 +2,26 @@ import argparse
 import os.path
 
 import numpy as np
+import torch
 from transformations import random_rotation_matrix
+import pytorch_kinematics as pk
 
 import mmint_utils
 
 
 def generate_dataset_transformations(dataset_cfg: dict, split: str):
     dataset_dir = dataset_cfg["dataset_dir"]
+    meshes_dir = dataset_cfg["meshes_dir"]
     n_transforms = dataset_cfg["N_transforms"]  # Per mesh.
     translation_bound = np.array(dataset_cfg["translation_bound"])
     scale_bounds = dataset_cfg["scale_bounds"]
+    z_rotate = dataset_cfg["z_rotate"]  # Only sample z rotations.
+    dtype = torch.float
 
     tfs_fn = os.path.join(dataset_dir, "transforms.pkl.gzip")
 
     # Load split info.
-    split_fn = os.path.join(dataset_dir, "splits", dataset_cfg["splits"][split])
+    split_fn = os.path.join(meshes_dir, "splits", dataset_cfg["splits"][split])
     meshes = np.atleast_1d(np.loadtxt(split_fn, dtype=str))
     meshes = [m.replace(".obj", "") for m in meshes]
 
@@ -32,7 +37,11 @@ def generate_dataset_transformations(dataset_cfg: dict, split: str):
             translation = np.random.uniform(-translation_bound, translation_bound, size=3)
 
             # Rotation: random rotation matrix.
-            rotation = random_rotation_matrix()
+            if z_rotate:
+                angle = transform_idx * 2 * np.pi / n_transforms
+                rotation = pk.RotateAxisAngle(angle, "Z", dtype=dtype, degrees=False).get_matrix()[0, :3, :3]
+            else:
+                rotation = random_rotation_matrix()
 
             # Get scale.
             scale = np.random.uniform(scale_bounds[0], scale_bounds[1])

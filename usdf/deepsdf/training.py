@@ -21,9 +21,10 @@ class Trainer(BaseTrainer):
         out_dir = self.cfg['training']['out_dir']
         batch_size = self.cfg['training']['batch_size']
         decoder_lr = float(self.cfg['training']['learning_rate']["decoder"]) * batch_size
-        latent_lr = float(self.cfg['training']['learning_rate']["latent"])
         max_epochs = self.cfg['training']['epochs']
         epochs_per_save = self.cfg['training']['epochs_per_save']
+        epochs_per_save_full = self.cfg['training'].get('epochs_per_save_full', 10)
+        # epochs_per_validate = self.cfg['training']['epochs_per_validate']
         self.train_loss_weights = self.cfg['training']['loss_weights']  # TODO: Better way to set this?
         self.sdf_clip = self.cfg['training']['sdf_clip']
 
@@ -80,6 +81,12 @@ class Trainer(BaseTrainer):
                     'it': it,
                 }
                 torch.save(save_dict, os.path.join(out_dir, 'model.pt'))
+
+            if epoch_it % epochs_per_save_full == 0:
+                save_dict = {
+                    'model': self.model.state_dict(),
+                }
+                torch.save(save_dict, os.path.join(out_dir, 'model_%d.pt' % epoch_it))
 
     def compute_train_loss(self, data, it):
         example_idx = data["example_idx"].to(self.device)

@@ -82,7 +82,7 @@ class Generator(BaseGenerator):
         for iter_idx in range_:
             opt.zero_grad()
 
-            if iter_idx % self.vis_every == 0:
+            if iter_idx % self.vis_every == 0 and False:
                 self.vis_function(latent, pose, data_dict)
 
             loss, loss_ind = self.inference_loss(latent, pose,
