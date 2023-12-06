@@ -19,7 +19,7 @@ def minimal_matching_distance(A, B):
         cd_i = chamfer_distance(A, B_i)[0]
         chamfer_distances.append(cd_i)
     chamfer_distances = torch.stack(chamfer_distances, dim=0)
-    mmd_value = torch.mean(chamfer_distances)
+    mmd_value = torch.min(chamfer_distances)
     return mmd_value
 
 
@@ -39,7 +39,7 @@ def total_matching_distance(B):
         B_i = B[i].unsqueeze(0).repeat(M-1, 1, 1) # (M-1, N, 3)
         # get the B subset without B_i
         B_subset = B[torch.arange(M) != i] # (M-1, N, 3)
-        cd_i = chamfer_distance(B_subset, B_i)[0]
+        cd_i = chamfer_distance(B_subset, B_i, batch_reduction="mean")[0]
         chamfer_distances.append(cd_i)
     chamfer_distances = torch.stack(chamfer_distances, dim=0)
     tmd_value = torch.mean(chamfer_distances)

@@ -101,10 +101,11 @@ def load_pred_results(out_dir, n, device=None):
                 try:
                     mesh_set_mesh = trimesh.load(mesh_set_fn)
                 except:
-                    pass
+                    print("Error loading mesh set %d for example %d" % (mesh_set_idx, idx))
             elif os.path.exists(mesh_set_dict_fn):
                 mesh_set_mesh = mmint_utils.load_gzip_pickle(mesh_set_dict_fn)
-            mesh_set.append(mesh_set_mesh)
+            if mesh_set_mesh is not None:
+                mesh_set.append(mesh_set_mesh)
             mesh_set_idx += 1
             mesh_set_fn = os.path.join(out_dir, "mesh_%d_%d.obj" % (idx, mesh_set_idx))
             mesh_set_dict_fn = os.path.join(out_dir, "mesh_%d_%d.pkl.gzip" % (idx, mesh_set_idx))
