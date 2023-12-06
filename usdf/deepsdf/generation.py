@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from torch import nn
+from torch import nn, autograd
 from tqdm import trange
 from vedo import Plotter, Mesh, Points
 
@@ -10,6 +10,34 @@ from usdf.generation import BaseGenerator
 from usdf.utils.infer_utils import inference_by_optimization
 from usdf.utils.marching_cubes import create_mesh
 import usdf.loss as usdf_losses
+
+
+class RBF(torch.nn.Module):
+    def __init__(self, sigma=None):
+        super(RBF, self).__init__()
+        self.sigma = sigma
+
+    def forward(self, X, Y):
+        XX = X.matmul(X.transpose(-2, -1))
+        XY = X.matmul(Y.transpose(-2, -1))
+        YY = Y.matmul(Y.transpose(-2, -1))
+
+        XX_diag = torch.diagonal(XX, dim1=-2, dim2=-1).unsqueeze(-1)
+        YY_diag = torch.diagonal(YY, dim1=-2, dim2=-1).unsqueeze(-2)
+        dnorm2 = -2 * XY + XX_diag + YY_diag.transpose(-2, -1)
+
+        # Apply the median heuristic (PyTorch does not give true median)
+        if self.sigma is None:
+            np_dnorm2 = dnorm2.detach().cpu().numpy()
+            h = np.median(np_dnorm2) / (2 * np.log(X.size(0) + 1))
+            sigma = np.sqrt(h).item()
+        else:
+            sigma = self.sigma
+
+        gamma = 1.0 / (1e-8 + 2 * sigma ** 2)
+        K_XY = (-gamma * dnorm2).exp()
+
+        return K_XY
 
 
 def z_rot_to_matrix(rot_z_theta):
@@ -33,6 +61,7 @@ class Generator(BaseGenerator):
         self.generates_mesh_set = True
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
+        self.svgd = generation_cfg.get("svgd", True)
         self.infer_pose = generation_cfg.get("infer_pose", True)
         self.pose_z_rot_only = generation_cfg.get("pose_z_rot_only", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
@@ -48,6 +77,7 @@ class Generator(BaseGenerator):
         self.num_perturb = generation_cfg.get("num_perturb", 8)
         self.pos_sigma = generation_cfg.get("pos_sigma", 0.04)
         self.rot_sigma = generation_cfg.get("rot_sigma", 0.3)
+        self.latent_sigma = generation_cfg.get("latent_sigma", 0.1)
 
     def generate_latent(self, data, return_single: bool = False):
         latent_metadata = {}
@@ -56,7 +86,10 @@ class Generator(BaseGenerator):
                                                torch.tensor([data["mesh_idx"]]).to(self.device), None)[0]
             pose = None
         else:
-            latent, pose, latent_metadata = self.infer_latent(data, num_examples=1)
+            if self.svgd:
+                latent, pose, latent_metadata = self.infer_latent_svgd(data, num_examples=1)
+            else:
+                latent, pose, latent_metadata = self.infer_latent(data, num_examples=1)
 
             if return_single:
                 latent = latent[0, torch.argmin(latent_metadata["final_loss"][0])]
@@ -70,6 +103,54 @@ class Generator(BaseGenerator):
     ####################################################################################################################
     # Inference Helpers                                                                                                #
     ####################################################################################################################
+
+    def infer_latent_svgd(self, data_dict, num_examples=1):
+        # Full point cloud.
+        full_pointcloud = torch.from_numpy(data_dict["full_pointcloud"]).to(self.device).float().unsqueeze(0)
+        full_pointcloud = full_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        full_pointcloud.requires_grad = True
+
+        # Surface point cloud.
+        surface_pointcloud = torch.from_numpy(data_dict["surface_pointcloud"]).to(self.device).float().unsqueeze(0)
+        surface_pointcloud = surface_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        surface_pointcloud.requires_grad = True
+
+        # Free point cloud.
+        free_pointcloud = torch.from_numpy(data_dict["free_pointcloud"]).to(self.device).float().unsqueeze(0)
+        free_pointcloud = free_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        free_pointcloud.requires_grad = True
+
+        latent, pose = self.init_latent(num_examples)
+
+        res_latent, res_pose, metadata = self.run_svgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                       full_pointcloud)
+        res_loss = metadata["final_loss"]
+
+        for iter_idx in range(self.outer_iter_limit):
+            final_loss_sorted, indices = torch.sort(res_loss[0], descending=False)
+
+            # Sort by loss.
+            latent = res_latent[:, indices]
+            pose = res_pose[:, indices]
+
+            if self.vis_inter:
+                self.vis_function(latent, pose, data_dict, final_loss=final_loss_sorted)
+
+            # Choose the best result and create perturbations around it.
+            best_latent = latent[:, 0:1]
+            best_latent = best_latent.repeat(1, self.num_perturb, 1)
+            best_pose = pose[:, 0:1]
+            best_pose = best_pose.repeat(1, self.num_perturb, 1)
+
+            # Update latents/poses.
+            latent[:, self.num_latent - self.num_perturb:] = best_latent
+            pose[:, self.num_latent - self.num_perturb:] = best_pose
+
+            res_latent, res_pose, metadata = self.run_svgd(latent, pose, data_dict, surface_pointcloud,
+                                                           free_pointcloud, full_pointcloud)
+            res_loss = metadata["final_loss"]
+
+        return res_latent, res_pose, {"final_loss": res_loss}
 
     def infer_latent(self, data_dict, num_examples=1):
         # Full point cloud.
@@ -140,7 +221,9 @@ class Generator(BaseGenerator):
                 new_pose = torch.cat([new_pos, new_rot_theta], dim=-1)
 
                 # TODO: Add offsets to latent code?
-                new_latent = latent
+                latent_offsets = torch.randn([num_examples, self.num_latent, self.model.z_object_size],
+                                             dtype=torch.float32, device=self.device) * self.latent_sigma
+                new_latent = latent + latent_offsets
 
                 if self.vis_inter:
                     self.vis_function(new_latent, new_pose, data_dict)
@@ -201,6 +284,65 @@ class Generator(BaseGenerator):
                                             free_pointcloud)
 
         return latent, pose, {"final_loss": final_loss, "iters": iter_idx + 1}
+
+    #################################################################
+    # SVGD stuff.
+    #################################################################
+
+    def log_prob(self, X, data_dict, surface_pointcloud, free_pointcloud, full_pointcloud):
+        pose_size = 4 if self.pose_z_rot_only else 9
+        pose = X[:, :, :pose_size]
+        latent = X[:, :, pose_size:]
+
+        loss, loss_ind = self.inference_loss(latent, pose,
+                                             full_pointcloud if self.use_full_pointcloud else surface_pointcloud,
+                                             free_pointcloud)
+        return -loss
+
+    def run_svgd(self, latent, pose, data_dict, surface_pointcloud, free_pointcloud, full_pointcloud):
+        latent = latent.detach()
+        pose = pose.detach()
+
+        K = RBF()
+
+        # Set up as parameters for opt.
+        X = torch.cat([pose, latent], dim=-1)
+        X.detach()
+        X.requires_grad = True
+
+        opt = torch.optim.Adam([X], lr=3e-2)
+
+        iter_idx = 0
+        range_ = trange(self.iter_limit)
+        for iter_idx in range_:
+            opt.zero_grad()
+
+            X = X.detach().requires_grad_(True)
+
+            log_prob = self.log_prob(X, data_dict, surface_pointcloud, free_pointcloud, full_pointcloud)
+            score_func = autograd.grad(log_prob.sum(), X)[0]
+
+            K_XX = K(X, X.detach())
+            grad_K = -autograd.grad(K_XX.sum(), X)[0]
+
+            phi = (K_XX.detach() @ score_func + grad_K) / X.shape[0]
+
+            X.grad = -phi
+            opt.step()
+
+            range_.set_postfix(loss=log_prob.item())
+
+        pose_size = 4 if self.pose_z_rot_only else 9
+        latent = X[:, :, pose_size:]
+        pose = X[:, :, :pose_size]
+
+        _, final_loss = self.inference_loss(latent, pose,
+                                            full_pointcloud if self.use_full_pointcloud else surface_pointcloud,
+                                            free_pointcloud)
+
+        return latent, pose, {"final_loss": final_loss, "iters": iter_idx + 1}
+
+    #################################################################
 
     def init_latent(self, num_examples):
         # latent_init = torch.zeros([num_examples, self.num_latent, self.model.z_object_size], dtype=torch.float32,
