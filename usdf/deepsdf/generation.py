@@ -42,7 +42,7 @@ class Generator(BaseGenerator):
         self.use_full_pointcloud = generation_cfg.get("use_full_pointcloud", False)
         self.init_mode = generation_cfg.get("init_mode", "random")
         self.outer_iter_limit = generation_cfg.get("outer_iter_limit", 5)
-        self.iter_limit = generation_cfg.get("iter_limit", 500)
+        self.iter_limit = generation_cfg.get("iter_limit", 100)
         self.vis_every = generation_cfg.get("vis_every", 250)
         self.vis_inter = generation_cfg.get("vis_inter", False)
         self.num_perturb = generation_cfg.get("num_perturb", 8)
