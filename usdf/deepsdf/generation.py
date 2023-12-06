@@ -61,7 +61,8 @@ class Generator(BaseGenerator):
         self.generates_mesh_set = True
 
         self.gen_from_known_latent = generation_cfg.get("gen_from_known_latent", False)
-        self.svgd = generation_cfg.get("svgd", True)
+        self.svgd = generation_cfg.get("svgd", False)
+        self.batch_latent = generation_cfg.get("batch_latent", True)
         self.infer_pose = generation_cfg.get("infer_pose", True)
         self.pose_z_rot_only = generation_cfg.get("pose_z_rot_only", True)
         self.mesh_resolution = generation_cfg.get("mesh_resolution", 128)
@@ -76,7 +77,7 @@ class Generator(BaseGenerator):
         self.vis_inter = generation_cfg.get("vis_inter", False)
         self.num_perturb = generation_cfg.get("num_perturb", 8)
         self.pos_sigma = generation_cfg.get("pos_sigma", 0.04)
-        self.rot_sigma = generation_cfg.get("rot_sigma", 0.3)
+        self.rot_sigma = generation_cfg.get("rot_sigma", 2.0)
         self.latent_sigma = generation_cfg.get("latent_sigma", 0.1)
 
     def generate_latent(self, data, return_single: bool = False):
@@ -88,6 +89,8 @@ class Generator(BaseGenerator):
         else:
             if self.svgd:
                 latent, pose, latent_metadata = self.infer_latent_svgd(data, num_examples=1)
+            elif self.batch_latent:
+                latent, pose, latent_metadata = self.infer_latent_batch(data, num_examples=1)
             else:
                 latent, pose, latent_metadata = self.infer_latent(data, num_examples=1)
 
@@ -242,6 +245,137 @@ class Generator(BaseGenerator):
                 res_latent = latent[:, indices[:self.num_latent]]
                 res_pose = pose[:, indices[:self.num_latent]]
                 res_loss = final_loss[:, indices[:self.num_latent]]
+        else:
+            res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                          full_pointcloud)
+            res_loss = metadata["final_loss"]
+
+        return res_latent, res_pose, {"final_loss": res_loss}
+
+    def init_latent_batch(self, num_examples):
+        latent_init = torch.randn([num_examples, 4, self.model.z_object_size], dtype=torch.float32,
+                                  device=self.device) * 0.1
+        latent_init = torch.repeat_interleave(latent_init, 4, 1)
+
+        pos = torch.zeros(3)
+        if self.infer_pose:
+            # rot_batch = pk.matrix_to_rotation_6d(
+            #     torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
+            # ).to(self.device).reshape([num_examples, self.num_latent, 6])
+            if self.pose_z_rot_only:
+                rot_batch = torch.rand([num_examples, self.num_latent, 1], dtype=torch.float32,
+                                       device=self.device) * 2 * np.pi
+            else:
+                rot_batch = pk.matrix_to_rotation_6d(
+                    pk.random_rotations(num_examples * self.num_latent)).to(self.device).reshape(
+                    [num_examples, self.num_latent, 6])
+            pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
+            pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
+        else:
+            rot_batch = pk.matrix_to_rotation_6d(
+                torch.tile(torch.eye(3), (num_examples * self.num_latent, 1, 1))
+            ).to(self.device).reshape([num_examples, self.num_latent, 6])
+            pos_batch = torch.from_numpy(np.tile(pos, (num_examples, self.num_latent, 1))).to(self.device).float()
+            pose_init = torch.cat([pos_batch, rot_batch], dim=-1)
+
+        return latent_init, pose_init
+
+    def infer_latent_batch(self, data_dict, num_examples=1):
+        # Full point cloud.
+        full_pointcloud = torch.from_numpy(data_dict["full_pointcloud"]).to(self.device).float().unsqueeze(0)
+        full_pointcloud = full_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        full_pointcloud.requires_grad = True
+
+        # Surface point cloud.
+        surface_pointcloud = torch.from_numpy(data_dict["surface_pointcloud"]).to(self.device).float().unsqueeze(0)
+        surface_pointcloud = surface_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        surface_pointcloud.requires_grad = True
+
+        # Free point cloud.
+        free_pointcloud = torch.from_numpy(data_dict["free_pointcloud"]).to(self.device).float().unsqueeze(0)
+        free_pointcloud = free_pointcloud.repeat(num_examples, self.num_latent, 1, 1)
+        free_pointcloud.requires_grad = True
+
+        latent, pose = self.init_latent_batch(num_examples)
+
+        if self.infer_pose:
+            res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
+                                                          full_pointcloud)
+            res_loss = metadata["final_loss"]
+
+            for iter_idx in range(self.outer_iter_limit):
+                latent_next = torch.zeros_like(res_latent)
+                pose_next = torch.zeros_like(res_pose)
+                for latent_set in range(4):
+                    # Compute best latent for each set.
+                    loss_set = res_loss[:, 4 * latent_set:4 * latent_set + 4]
+                    best_loss, best_idx = torch.min(loss_set, dim=1)
+                    latent_next[:, 4 * latent_set:4 * latent_set + 4] = (
+                        res_latent[:, latent_set * 4 + best_idx.item()].unsqueeze(1).repeat(1, 4, 1))
+                    pose_next[:, 4 * latent_set:4 * latent_set + 4] = (
+                        res_pose[:, latent_set * 4 + best_idx.item()].unsqueeze(1).repeat(1, 4, 1))
+
+                # Calculate perturbations across ALL values..
+                delta_pos = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32,
+                                        device=self.device) * self.pos_sigma
+                delta_theta = torch.randn([num_examples, self.num_latent], dtype=torch.float32,
+                                          device=self.device) * self.rot_sigma
+                rand_dir = torch.randn([num_examples, self.num_latent, 3], dtype=torch.float32, device=self.device)
+                rand_dir = rand_dir / torch.norm(rand_dir, dim=-1, keepdim=True)
+                delta_rot = pk.axis_and_angle_to_matrix_33(rand_dir, delta_theta)
+
+                # Combine with best result from previous iteration.
+                pos = pose_next[:, :, :3]
+                if self.pose_z_rot_only:
+                    rot_z_theta = pose_next[..., 3]
+                    rot_matrix = z_rot_to_matrix(rot_z_theta)
+                else:
+                    rot_6d = pose_next[:, :, 3:]
+                    rot_matrix = pk.rotation_6d_to_matrix(rot_6d)
+                new_rot_matrix = delta_rot @ rot_matrix
+                if self.pose_z_rot_only:
+                    new_rot_theta = torch.atan2(new_rot_matrix[..., 1, 0], new_rot_matrix[..., 0, 0]).unsqueeze(-1)
+                else:
+                    new_rot_theta = pk.matrix_to_rotation_6d(new_rot_matrix)
+                new_pos = pos + delta_pos
+                new_pose = torch.cat([new_pos, new_rot_theta], dim=-1)
+
+                # TODO: Add offsets to latent code?
+                latent_offsets = torch.randn([num_examples, self.num_latent, self.model.z_object_size],
+                                             dtype=torch.float32, device=self.device) * self.latent_sigma
+                new_latent = latent_next + latent_offsets
+
+                if self.vis_inter:
+                    self.vis_function(new_latent, new_pose, data_dict)
+
+                latent, pose, metadata = self.run_sgd(new_latent, new_pose, data_dict, surface_pointcloud,
+                                                      free_pointcloud,
+                                                      full_pointcloud)
+                final_loss = metadata["final_loss"]
+
+                # Get best num_latent from current best and new results.
+                new_res_latent = torch.zeros_like(res_latent)
+                new_res_pose = torch.zeros_like(res_pose)
+                new_res_loss = torch.zeros_like(res_loss)
+                for latent_set in range(4):
+                    # Combine set examples.
+                    latent_combined = torch.cat([latent[:, latent_set * 4:latent_set * 4 + 4],
+                                                 res_latent[:, latent_set * 4:latent_set * 4 + 4]], dim=1)
+                    pose_combined = torch.cat([pose[:, latent_set * 4:latent_set * 4 + 4],
+                                               res_pose[:, latent_set * 4:latent_set * 4 + 4]], dim=1)
+                    loss_combined = torch.cat([final_loss[:, latent_set * 4:latent_set * 4 + 4],
+                                               res_loss[:, latent_set * 4:latent_set * 4 + 4]], dim=1)
+
+                    # Sort by loss.
+                    loss_combined_sorted, indices = torch.sort(loss_combined[0], descending=False)
+
+                    # Get best 4 from current best and new results.
+                    new_res_latent[:, latent_set * 4:latent_set * 4 + 4] = latent_combined[:, indices[:4]]
+                    new_res_pose[:, latent_set * 4:latent_set * 4 + 4] = pose_combined[:, indices[:4]]
+                    new_res_loss[:, latent_set * 4:latent_set * 4 + 4] = loss_combined[:, indices[:4]]
+                res_latent = new_res_latent
+                res_pose = new_res_pose
+                res_loss = new_res_loss
         else:
             res_latent, res_pose, metadata = self.run_sgd(latent, pose, data_dict, surface_pointcloud, free_pointcloud,
                                                           full_pointcloud)
