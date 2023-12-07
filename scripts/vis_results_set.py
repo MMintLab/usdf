@@ -31,16 +31,24 @@ def vis_results(dataset_cfg: str, gen_dir: str, mode: str = "test", offset: int 
 
         vis_partial = "surface_pointcloud" in data_dict
 
-        plt = Plotter(shape=(1, 4))
+        meshes_vis = []
+        for i, mesh in enumerate(pred_mesh_set):
+            meshes_vis.append(
+                Mesh([mesh.vertices, mesh.faces], c="grey", alpha=0.5)
+            )
+
+        plt = Plotter(shape=(1, 5))
         plt.at(0).show(
+            Mesh([gt_mesh.vertices, gt_mesh.faces]),
             Points(data_dict["surface_pointcloud"], c="b") if vis_partial else None,
             Points(data_dict["free_pointcloud"], c="r", alpha=0.05) if vis_partial else None,
         )
-        for idx, res_idx in enumerate([13, 0, 15]):
+        for idx, res_idx in enumerate([7, 8, 0]):
             mesh = pred_mesh_set[res_idx]
             plt.at(idx + 1).show(
                 Mesh([mesh.vertices, mesh.faces]),
             )
+        plt.at(4).show(*meshes_vis)
         plt.interactive().close()
 
 
